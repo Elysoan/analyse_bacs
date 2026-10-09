@@ -218,21 +218,23 @@
            cols.find(c => /(^id$|^id_|_id$|identifiant|numero|n°|rfid|puce)/i.test(c)) || cols[0] || '';
   }
 
-  // Part des valeurs d'une colonne reconnues comme dates.
-  function dateRatio(rows, col) {
+  // Part des valeurs d'une colonne reconnues comme dates. Les numéros de série Excel
+  // (ex. 45931) ne sont acceptés que si le nom de colonne évoque une date (allowSerial).
+  function dateRatio(rows, col, allowSerial) {
     let n = 0, ok = 0;
     for (const r of rows) {
       const v = r[col];
       if (v === '' || v === null || v === undefined) continue;
       n++;
-      if (/[/.-]/.test(String(v)) && Levees.parseDate(v) !== null) ok++;
+      const s = String(v);
+      if ((/[/.-]/.test(s) || (allowSerial && /^\d{5}([.,]\d+)?$/.test(s))) && Levees.parseDate(v) !== null) ok++;
       if (n >= 200) break;
     }
     return n ? ok / n : 0;
   }
 
   function guessDate(rows, cols) {
-    return cols.find(c => /date|jour|horodat/i.test(c) && dateRatio(rows, c) >= 0.5) ||
+    return cols.find(c => /date|jour|horodat/i.test(c) && dateRatio(rows, c, true) >= 0.5) ||
            cols.find(c => dateRatio(rows, c) >= 0.8) || '';
   }
 
@@ -265,14 +267,17 @@
       const sa = distinct(rowsA, ca, true);
       if (sa.size < 10 || sa.size < 0.5 * sa.filled) continue; // un identifiant est (presque) unique dans A
       for (const [cb, sb] of setsB) {
-        const score = overlap(sa, sb);
-        if (score > best.score && score >= 5) best = { a: ca, b: cb, score };
+        const overlapN = overlap(sa, sb);
+        // À recouvrement égal, on préfère une colonne nommée « puce » (ex. « Numero puce » plutôt que « Repere levee »).
+        const score = overlapN * (/puce|rfid|tag/i.test(cb) ? 1.1 : 1) * (/puce|rfid|tag/i.test(ca) ? 1.1 : 1);
+        if (score > best.score && overlapN >= 5) best = { a: ca, b: cb, score, overlap: overlapN };
       }
     }
     if (!best.score) {
       return { a: guessKey(colsA.filter(c => !c.startsWith('__'))), b: guessKey(colsB.filter(c => !c.startsWith('__'))), score: 0, scoreExact: 0 };
     }
     best.scoreExact = overlap(distinct(rowsA, best.a, false), distinct(rowsB, best.b, false));
+    best.score = best.overlap;
     return best;
   }
 

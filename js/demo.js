@@ -117,6 +117,22 @@
   const COMMUNES_LSO = ["LES SABLES D'OLONNE", 'OLONNE SUR MER', "LE CHATEAU D'OLONNE"];
   const ACTIVITES = [['Habitation individuelle', 0.85], ['Immeuble collectif/Appart', 0.10], ['Bâtiment public', 0.05]];
 
+  const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const LIBELLES = {
+    111: 'Identifié, autorisé, collecté',
+    110: 'Identifié, autorisé, non collecté',
+    101: 'Identifié, non autorisé, collecté',
+    1: 'Non identifié, non autorisé, collecté'
+  };
+  // Ce que fait Excel d'une puce : « 0117068081 » devient le nombre 117068081,
+  // « 0116794E12 » devient 1,16794E+17 ; les puces avec d'autres lettres restent du texte.
+  function commeExcel(puce) {
+    if (/^\d+$/.test(puce)) return Number(puce);
+    // (au-delà de 9,99E+307, Excel ne peut pas convertir et garde le texte)
+    if (/^\d+E\d+$/.test(puce) && Number(puce.replace('E', 'e')) < 9.99e307) return Number(puce.replace('E', 'e'));
+    return puce;
+  }
+
   function generateLevees(n, seed) {
     n = n || 1500;
     const r = rng(seed || 7);
@@ -129,7 +145,7 @@
     const centre = [46.4967, -1.7831];
 
     const clients = [], levees = [];
-    const ajouterLevees = (puce, secteur, lat, lon, p, du, au, decalage, flux) => {
+    const ajouterLevees = (puce, secteur, lat, lon, p, du, au, decalage, flux, nonAutorise) => {
       let nb = 0;
       const jourCollecte = secteur % 5; // 0 = lundi
       for (let lundi = debut - ((debut + 3) % 7); lundi <= fin; lundi += 7) {
@@ -138,15 +154,27 @@
         if (r() > p) continue;
         nb++;
         const [la, lo] = offset(lat, lon, decalage + r() * 15, r);
+        // Même structure que l'export des levées Paprec.
+        const u = r();
+        const code = nonAutorise ? 101 : u < 0.004 ? 1 : u < 0.014 ? 110 : 111;
+        const lue = code !== 1;
+        const dt = new Date(d * JOUR);
         levees.push({
-          'Date levée': fmtDate(d) + ' ' + p2(6 + Math.floor(r() * 7)) + ':' + p2(Math.floor(r() * 60)),
-          'Code puce': r() < 0.003 ? '' : Number(puce), // zéro en tête perdu, comme souvent dans les exports
+          'Annee': 'Année ' + dt.getUTCFullYear(),
+          'Mois': MOIS[dt.getUTCMonth()],
+          'Jour': d + 25569, // numéro de série Excel, comme dans l'export
+          'Contrat': 'LSOA',
+          'Code Tournee': r() < 0.5 ? 'SANS TOURNEE' : 'LSO' + p2(secteur),
+          'Statut Tournee': 'Mise à disposition',
           'Flux': flux || 'FFOM',
-          'Tournée': 'LSO ' + secteur,
-          'Véhicule': 'BOM-' + (1 + secteur % 4),
-          'Poids (kg)': Math.round((3 + r() * 22) * 10) / 10,
-          'Latitude': +la.toFixed(6),
-          'Longitude': +lo.toFixed(6)
+          'Code Levee': code,
+          'Libelle Code Levee': LIBELLES[code],
+          'Code BOM': ['HA364NH', 'GT512KL', 'FX908PB', 'DR227MS'][secteur % 4],
+          'Code Chaise': 0,
+          'Numero puce': lue ? commeExcel(puce) : '',
+          'Latitude*': String(+la.toFixed(6)),
+          'Longitude*': String(+lo.toFixed(6)),
+          'Repere levee': lue ? commeExcel(puce) : 225000000 + Math.floor(r() * 99999)
         });
       }
       return nb;
@@ -158,7 +186,7 @@
       const v = pick(VOIES);
       const u = r();
       const activite = u < ACTIVITES[0][1] ? ACTIVITES[0][0] : u < ACTIVITES[0][1] + ACTIVITES[1][1] ? ACTIVITES[1][0] : ACTIVITES[2][0];
-      const puce = '0116' + String(772000 + i * 7).padStart(6, '0');
+      const puce = '0116' + (0x772000 + i * 7).toString(16).toUpperCase().padStart(6, '0');
       // Livraison : majorité avant la période, 10 % en cours d'année, 3 % en décembre.
       const w = r();
       const livraison = w < 0.03 ? fin - 3 - Math.floor(r() * 20) : w < 0.13 ? debut + 30 + Math.floor(r() * 280) : debut - 30 - Math.floor(r() * 300);
@@ -197,15 +225,14 @@
     // Puces levées mais absentes de la base client.
     for (let j = 0; j < 50; j++) {
       const [lat, lon] = offset(centre[0], centre[1], 300 + r() * 3500, r);
-      ajouterLevees('0116' + String(990000 + j), 1 + (j % 14), lat, lon, 0.6, debut, fin, 0);
+      ajouterLevees('0116' + (0x990000 + j * 13).toString(16).toUpperCase(), 1 + (j % 14), lat, lon, 0.6, debut, fin, 0, 'FFOM', j % 2 === 0);
     }
     // Autres flux collectés sur le territoire (bacs hors base biodéchets).
     for (let j = 0; j < 250; j++) {
       const [lat, lon] = offset(centre[0], centre[1], 300 + r() * 3500, r);
-      ajouterLevees('0117' + String(500000 + j), 1 + (j % 14), lat, lon, 0.8, debut, fin, 0, j < 180 ? 'OMR' : 'CS');
+      ajouterLevees('0117' + (0x500000 + j * 11).toString(16).toUpperCase(), 1 + (j % 14), lat, lon, 0.8, debut, fin, 0, j < 180 ? 'OMR' : 'CS');
     }
-    levees.sort((a, b) => a['Date levée'].slice(6, 10) + a['Date levée'].slice(3, 5) + a['Date levée'].slice(0, 2) <
-      b['Date levée'].slice(6, 10) + b['Date levée'].slice(3, 5) + b['Date levée'].slice(0, 2) ? -1 : 1);
+    levees.sort((a, b) => a.Jour - b.Jour);
     return { clients, levees };
   }
 

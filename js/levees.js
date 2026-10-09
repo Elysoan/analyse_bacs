@@ -66,40 +66,50 @@
    * Agrège les levées ligne à ligne (adapté aux fichiers d'un million de lignes).
    * @param {Object} o keyCol, dateCol, weightCol?, xCol?, yCol?,
    *                   project?(x, y) -> [lon, lat] | null, ignoreLeadingZeros?,
-   *                   fluxCol? (colonne flux), fluxKeep? (Set des flux analysés, ex. FFOM)
-   * Les indicateurs (taux, dates, position...) ne portent que sur les flux retenus ;
-   * le nombre de levées par flux est conservé pour toutes les puces.
+   *                   fluxCol?, fluxKeep? (Set des flux analysés, ex. FFOM),
+   *                   statutCol?, statutKeep? (Set des statuts retenus, ex. « collecté »)
+   * Les indicateurs (taux, dates, position...) ne portent que sur les levées retenues ;
+   * le nombre de levées par flux et par statut est conservé pour toutes les puces.
    * @returns {{ add(row), result() }}
    */
   function createAggregator(o) {
     const bacs = new Map();
     const parMois = new Map();
-    const parFlux = new Map(); // flux -> { levees, puces: Set }
-    const st = { lignes: 0, sansCle: 0, dateInvalide: 0, minDay: Infinity, maxDay: -Infinity, levees: 0, autresFlux: 0 };
+    const dims = [];
+    if (o.fluxCol) dims.push({ id: 'flux', col: o.fluxCol, keep: o.fluxKeep, exclues: 0, total: new Map() });
+    if (o.statutCol) dims.push({ id: 'statut', col: o.statutCol, keep: o.statutKeep, exclues: 0, total: new Map() });
+    const st = { lignes: 0, sansCle: 0, dateInvalide: 0, minDay: Infinity, maxDay: -Infinity, levees: 0 };
     const keyOpts = { ignoreLeadingZeros: o.ignoreLeadingZeros };
+    const valeur = v => v === undefined || v === null || String(v).trim() === '' ? '(vide)' : String(v).trim();
 
     function add(row) {
       st.lignes++;
       const day = parseDate(row[o.dateCol]);
       if (day === null) { st.dateInvalide++; return; }
       const key = Compare.normalizeKey(row[o.keyCol], keyOpts);
+      // Répartition par flux / statut : toutes les levées, y compris sans puce lue.
+      const vals = dims.map(d => {
+        const v = valeur(row[d.col]);
+        let g = d.total.get(v);
+        if (!g) d.total.set(v, (g = { levees: 0, puces: new Set() }));
+        g.levees++;
+        if (key) g.puces.add(key);
+        return v;
+      });
       if (!key) { st.sansCle++; return; }
 
       let b = bacs.get(key);
       if (!b) {
-        b = { brut: String(row[o.keyCol]).trim(), n: 0, flux: {}, jours: new Set(), semaines: new Set(), first: Infinity, last: -Infinity, poids: 0, nPoids: 0, lats: [], lons: [] };
+        b = { brut: Compare.keyText(row[o.keyCol]).trim(), n: 0, dims: {}, jours: new Set(), semaines: new Set(), first: Infinity, last: -Infinity, poids: 0, nPoids: 0, lats: [], lons: [] };
         bacs.set(key, b);
       }
-      if (o.fluxCol) {
-        const v = row[o.fluxCol];
-        const flux = v === undefined || v === null || String(v).trim() === '' ? '(vide)' : String(v).trim();
-        b.flux[flux] = (b.flux[flux] || 0) + 1;
-        let g = parFlux.get(flux);
-        if (!g) parFlux.set(flux, (g = { levees: 0, puces: new Set() }));
-        g.levees++;
-        g.puces.add(key);
-        if (o.fluxKeep && !o.fluxKeep.has(flux)) { st.autresFlux++; return; }
-      }
+      let retenue = true;
+      dims.forEach((d, i) => {
+        const c = b.dims[d.id] || (b.dims[d.id] = {});
+        c[vals[i]] = (c[vals[i]] || 0) + 1;
+        if (retenue && d.keep && !d.keep.has(vals[i])) { d.exclues++; retenue = false; }
+      });
+      if (!retenue) return;
 
       st.levees++;
       if (day < st.minDay) st.minDay = day;
@@ -128,11 +138,11 @@
     function result() {
       const vide = st.levees === 0;
       const records = [];
-      const fluxParCle = new Map();
+      const dimsParCle = new Map();
       let idx = 0;
       for (const [key, b] of bacs) {
-        if (o.fluxCol) fluxParCle.set(key, b.flux);
-        if (!b.n) continue; // levée uniquement sur d'autres flux : pas une puce du flux analysé
+        if (dims.length) dimsParCle.set(key, b.dims);
+        if (!b.n) continue; // aucune levée retenue (autre flux, non collectée...) : pas une puce analysée
         records.push({
           idx: idx++,
           props: { identifiant: b.brut },
@@ -143,23 +153,58 @@
           lat: median(b.lats), lon: median(b.lons)
         });
       }
-      const flux = Array.from(parFlux.entries())
-        .map(([f, g]) => ({ flux: f, levees: g.levees, puces: g.puces.size, retenu: !o.fluxKeep || o.fluxKeep.has(f) }))
+      const resume = d => Array.from(d.total.entries())
+        .map(([v, g]) => ({ flux: v, valeur: v, levees: g.levees, puces: g.puces.size, retenu: !d.keep || d.keep.has(v) }))
         .sort((a, b) => b.levees - a.levees);
+      const parDim = {};
+      dims.forEach(d => { parDim[d.id] = resume(d); });
+      const exclues = id => { const d = dims.find(x => x.id === id); return d ? d.exclues : 0; };
       return {
         records,
-        fluxParCle,
+        dimsParCle,
         stats: {
-          lignes: st.lignes, levees: st.levees, sansCle: st.sansCle, dateInvalide: st.dateInvalide, autresFlux: st.autresFlux,
+          lignes: st.lignes, levees: st.levees, sansCle: st.sansCle, dateInvalide: st.dateInvalide,
+          autresFlux: exclues('flux'), statutsExclus: exclues('statut'),
           debut: vide ? null : st.minDay, fin: vide ? null : st.maxDay,
           semainesPeriode: vide ? 0 : (lundi(st.maxDay) - lundi(st.minDay)) / 7 + 1,
           parMois: Array.from(parMois.entries()).sort((a, b) => a[0] < b[0] ? -1 : 1),
-          flux
+          flux: parDim.flux || [],
+          statuts: parDim.statut || []
         }
       };
     }
 
     return { add, result };
+  }
+
+  /**
+   * Excel convertit en nombre les puces hexadécimales de la forme « chiffres E chiffres » :
+   * « 01167726E4 » devient 11677260000, indiscernable d'une puce purement numérique.
+   * Pour chaque puce levée purement numérique, on teste sa forme « 1167726E4 » dans la base client
+   * (uniquement parmi les puces client de type « chiffres E chiffres », sans écraser une correspondance directe). Renvoie le nombre de puces reconstituées.
+   */
+  function reconcilierExcel(bacs, agg, o) {
+    if (!o.ignoreLeadingZeros) return 0;
+    const keyOpts = { ignoreLeadingZeros: true };
+    const clefsA = new Map(), toutesA = new Set();
+    for (const a of bacs) {
+      const k = Compare.normalizeKey(a.props[o.keyA], keyOpts);
+      if (k) toutesA.add(k);
+      if (k && /E/.test(k)) clefsA.set(k, a.props[o.keyA]);
+    }
+    if (!clefsA.size) return 0;
+    let n = 0;
+    for (const rec of agg.records) {
+      const k = Compare.normalizeKey(rec.props.identifiant, keyOpts);
+      if (!/^\d+$/.test(k) || toutesA.has(k)) continue;
+      const cand = Compare.normalizeKey(k + 'E0', keyOpts); // forme canonique : 11677260000E0 -> 1167726E4
+      if (!clefsA.has(cand)) continue;
+      rec.props.identifiant = String(clefsA.get(cand));
+      rec.reconstituee = true;
+      if (agg.dimsParCle && agg.dimsParCle.has(k)) agg.dimsParCle.set(cand, agg.dimsParCle.get(k));
+      n++;
+    }
+    return n;
   }
 
   /**
@@ -170,9 +215,10 @@
    * @param {Object} o keyA, moveThreshold (m), seuilTaux (%), seuilArret (semaines),
    *                   dateA? (colonne date de livraison), countA? (colonne nb de levées déclaré),
    *                   fluxKeep? (Set des flux analysés), ignoreLeadingZeros?
-   * Chaque ligne reçoit aussi r.flux = { flux: nb de levées } (toutes levées confondues).
+   * Chaque ligne reçoit aussi r.flux / r.statuts = { valeur: nb de levées } (toutes levées confondues).
    */
   function analyser(bacs, agg, o) {
+    const pucesCorrigees = reconcilierExcel(bacs, agg, o);
     const res = Compare.compare(bacs, agg.records, {
       mode: 'key', keyA: o.keyA, keyB: 'identifiant', fieldPairs: [],
       moveThreshold: o.moveThreshold, ignoreLeadingZeros: o.ignoreLeadingZeros
@@ -200,7 +246,9 @@
 
       const keyOpts = { ignoreLeadingZeros: o.ignoreLeadingZeros };
       const cle = r.a ? Compare.normalizeKey(r.a.props[o.keyA], keyOpts) : Compare.normalizeKey(r.b.props.identifiant, keyOpts);
-      r.flux = agg.fluxParCle ? agg.fluxParCle.get(cle) || null : null;
+      r.dims = agg.dimsParCle ? agg.dimsParCle.get(cle) || null : null;
+      r.flux = r.dims && r.dims.flux ? r.dims.flux : null;
+      r.statuts = r.dims && r.dims.statut ? r.dims.statut : null;
       // Bac du client levé (aussi) sur un flux non analysé, ex. bac biodéchets vidé par la tournée OMR.
       const autreFlux = r.a && r.flux && o.fluxKeep && Object.keys(r.flux).some(f => !o.fluxKeep.has(f));
 
@@ -232,7 +280,7 @@
     }
     const tauxLeves = res.rows.filter(r => r.a && r.b && r.lv.taux !== null).map(r => r.lv.taux);
     res.stats = Object.assign({}, res.stats, {
-      byTag, leveesNonRef, tranches, bacsClient,
+      byTag, leveesNonRef, tranches, bacsClient, pucesCorrigees,
       tauxMedian: median(tauxLeves),
       levees: agg.stats
     });

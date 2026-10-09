@@ -11,8 +11,19 @@ Outil web pour analyser une base de bacs avec une **carte** et des **tableaux**,
 ## Démarrer
 
 1. Ouvrir `index.html` dans Chrome ou Edge (double-clic suffit).
-2. Pour découvrir l'outil : **Exemple : bacs + levées** ou **Exemple : 2 inventaires** (données fictives).
-3. Sinon : charger la base de bacs en *Base A*, les levées (ou l'autre inventaire) en *Base B*, vérifier les colonnes proposées, puis **Analyser**.
+2. Suivre les 3 étapes du panneau de gauche :
+   1. **Base client** : déposer le fichier des bacs (glisser-déposer ou clic) ;
+   2. **Levées** : déposer l'export des levées ;
+   3. **Vérifier** : les colonnes, les flux (FFOM coché par défaut) et les statuts de levée retenus sont proposés automatiquement ; corriger si besoin, puis **Lancer l'analyse**.
+3. Explorer : cliquer un indicateur, un flux, un statut, une tranche de taux ou une ligne de synthèse filtre la carte et le tableau ; cliquer une ligne localise le bac. Les exports CSV / GeoJSON reprennent la sélection.
+
+Menu **Exemples** : données fictives au format réel (base biodéchets + levées, ou deux inventaires). Bouton **Aide** : mode d'emploi et définition de chaque indicateur.
+
+### Formats réels pris en charge
+
+- **Base client** (export agglo) : `Code puce` en texte, `Date livraison` (date Excel, y compris au format américain), `Nombre d'apparitions…`, `Activité`, adresse découpée (`Type de voie` / `Nom de la voie` avec code secteur `LSO n`).
+- **Levées** (export Paprec) : `Jour` (numéro de série Excel), `Flux`, `Libelle Code Levee` (« Identifié, autorisé, collecté »…), `Numero puce`, `Latitude*` / `Longitude*`.
+- Puces abîmées par Excel rapprochées automatiquement : 0 en tête perdu (`0117068081` → `117068081`) et notation scientifique (`0116794E12` → `1,16794E+17`, `01167726E4` → `11677260000`).
 
 ## Analyse des levées
 
@@ -29,17 +40,20 @@ Les levées sont agrégées par bac (identifiant puce ou n° de bac), puis rappr
 | Levés aussi sur un autre flux | bac de la base client levé au moins une fois sur un flux non analysé (ex. OMR) |
 | Écart de position | distance bac (base client) ↔ position médiane de ses levées > seuil (50 m), si les deux ont des coordonnées |
 
-**Flux** : si l'export des levées contient une colonne flux (FFOM, OMR, CS…), on choisit le ou les flux analysés (FFOM coché par défaut). Les indicateurs ne portent que sur ces flux, et :
+**Flux et statuts** : on choisit le ou les flux analysés (FFOM coché par défaut) et les statuts de levée retenus (tout sauf « non collecté » par défaut). Les indicateurs ne portent que sur ces levées, et :
 - *Puces FFOM levées, absentes de la base client* : liste géolocalisée (position médiane des levées) avec le nombre de levées, exportable en GeoJSON pour ArcGIS Pro ;
 - *Bacs du client levés aussi hors FFOM* : bacs vidés au moins une fois sur un autre flux (erreur de tournée, puce mal affectée) ;
 - tableau des levées par flux, et une colonne « Levées <flux> » par flux pour chaque puce ;
-- les puces levées uniquement sur un autre flux et absentes de la base client (bacs OMR, CS…) sont ignorées.
+- les puces levées uniquement sur un autre flux et absentes de la base client (bacs OMR, CS…) sont ignorées ;
+- tableau des statuts de levée : un clic liste par exemple les puces « Identifié, non autorisé, collecté ».
+
+**Carte** : en vue d'ensemble, seules les 3 catégories prioritaires sont en couleur (puces non référencées, jamais levés, levés sur un autre flux), le reste en gris ; un indicateur sélectionné colore tous ses points. Palette vérifiée pour le daltonisme.
 
 Également : levées par mois (repère les mois manquants dans l'export), répartition des taux, contrôle du « nombre d'apparitions » déclaré dans la base client, **synthèse par activité / secteur / commune**.
 
 Colonnes détectées automatiquement (modifiables) : identifiants communs (y compris si les zéros en tête diffèrent, ex. `0116772441` vs `116772441`), date de levée, poids, date de livraison, nombre de levées déclaré.
 
-**Volumes testés** : 800 000 levées en Excel → lecture ≈ 16 s, analyse ≈ 3 s, ≈ 600 Mo de mémoire (Chrome). Un export CSV est 3 à 4 fois plus rapide à lire.
+**Volumes testés** : 800 000 levées en Excel → lecture ≈ 20 s, analyse ≈ 3 s, ≈ 600 Mo de mémoire (Chrome). Un export CSV est 3 à 4 fois plus rapide à lire.
 
 ## Géocodage (base sans coordonnées)
 

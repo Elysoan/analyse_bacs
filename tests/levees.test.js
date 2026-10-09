@@ -79,7 +79,8 @@ test('analyse : catégories et taux de présentation', () => {
 test('démo levées : ordres de grandeur réalistes', () => {
   const d = Demo.generateLevees(600, 7);
   const fluxKeep = new Set(['FFOM']);
-  const agg = createAggregator({ keyCol: 'Code puce', dateCol: 'Date levée', weightCol: 'Poids (kg)', fluxCol: 'Flux', fluxKeep, ignoreLeadingZeros: true });
+  const statutKeep = new Set(['Identifié, autorisé, collecté', 'Identifié, non autorisé, collecté', 'Non identifié, non autorisé, collecté']);
+  const agg = createAggregator({ keyCol: 'Numero puce', dateCol: 'Jour', fluxCol: 'Flux', fluxKeep, statutCol: 'Libelle Code Levee', statutKeep, ignoreLeadingZeros: true });
   d.levees.forEach(agg.add);
   const bacs = d.clients.map((p, i) => rec(i, p, p.Latitude, p.Longitude));
   const res = analyser(bacs, agg.result(), { keyA: 'Code puce', moveThreshold: 50, seuilTaux: 25, seuilArret: 8, dateA: 'Date livraison', fluxKeep, ignoreLeadingZeros: true });
@@ -87,6 +88,8 @@ test('démo levées : ordres de grandeur réalistes', () => {
   for (const k of ['identique', 'faible', 'arret', 'seulA', 'recent', 'seulB', 'autre_flux']) assert.ok(t[k] > 0, k + ' attendu > 0');
   // Les 250 puces OMR / CS hors base client ne sont pas des « FFOM non référencées ».
   assert.deepStrictEqual(res.stats.levees.flux.map(f => f.flux).sort(), ['CS', 'FFOM', 'OMR']);
+  assert.ok(res.stats.levees.statutsExclus > 0, 'levées non collectées écartées');
+  assert.strictEqual(res.stats.levees.statuts.length, 4);
   assert.strictEqual(t.seulB, 50);
   assert.ok(res.stats.tauxMedian > 30 && res.stats.tauxMedian < 90, 'taux médian ' + res.stats.tauxMedian);
 });
@@ -114,4 +117,37 @@ test('flux : seules les levées du flux retenu comptent, la répartition reste v
   const seulB = res.rows.filter(r => r.category === 'seulB');
   assert.deepStrictEqual(seulB.map(r => r.b.props.identifiant), ['X9']);
   assert.strictEqual(seulB[0].b.agg.n, 2);
+});
+
+test('statut de levée : seules les levées collectées comptent', () => {
+  const L = [
+    { d: 45931, p: '011678954D', s: 'Identifié, autorisé, collecté' },
+    { d: 45938, p: '011678954D', s: 'Identifié, autorisé, non collecté' },
+    { d: 45932, p: 117068081, s: 'Identifié, non autorisé, collecté' },   // zéro perdu par Excel
+    { d: 45933, p: '', s: 'Non identifié, non autorisé, collecté' }
+  ];
+  const statutKeep = new Set(['Identifié, autorisé, collecté', 'Identifié, non autorisé, collecté', 'Non identifié, non autorisé, collecté']);
+  const agg = createAggregator({ keyCol: 'p', dateCol: 'd', statutCol: 's', statutKeep, ignoreLeadingZeros: true });
+  L.forEach(agg.add);
+  const ag = agg.result();
+  assert.strictEqual(ag.stats.levees, 2);
+  assert.strictEqual(ag.stats.statutsExclus, 1);
+  assert.strictEqual(ag.stats.sansCle, 1);
+  assert.strictEqual(formatDay(ag.stats.debut), '01/10/2025');
+  const res = analyser([rec(0, { puce: '0117068081' }), rec(1, { puce: '011678954D' })], ag, { keyA: 'puce', moveThreshold: 50, seuilTaux: 0, seuilArret: 1, ignoreLeadingZeros: true });
+  const r = res.rows.find(x => x.a && x.a.props.puce === '011678954D');
+  assert.strictEqual(r.b.agg.n, 1);
+  assert.deepStrictEqual(r.statuts, { 'Identifié, autorisé, collecté': 1, 'Identifié, autorisé, non collecté': 1 });
+  assert.ok(res.rows.find(x => x.a && x.a.props.puce === '0117068081').b, 'puce sans zéro rapprochée');
+});
+
+test('puces converties en nombre par Excel : reconstitution sans écraser une correspondance directe', () => {
+  const agg = createAggregator({ keyCol: 'p', dateCol: 'd', ignoreLeadingZeros: true });
+  [11677260000, 116772, 116772000].forEach(p => agg.add({ d: 45931, p }));
+  const bacs = [rec(0, { p: '01167726E4' }), rec(1, { p: '0116772E00' }), rec(2, { p: '0116772000' }), rec(3, { p: '0116772E03' })];
+  const res = analyser(bacs, agg.result(), { keyA: 'p', moveThreshold: 50, seuilTaux: 0, seuilArret: 1, ignoreLeadingZeros: true });
+  const leve = p => !!res.rows.find(r => r.a && r.a.props.p === p).b;
+  assert.ok(leve('01167726E4') && leve('0116772E00') && leve('0116772000'));
+  assert.ok(!leve('0116772E03'), 'la correspondance directe 0116772000 est prioritaire');
+  assert.strictEqual(res.stats.pucesCorrigees, 2);
 });

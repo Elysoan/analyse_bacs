@@ -35,12 +35,32 @@
     return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
   }
 
+  /**
+   * Texte d'un identifiant. Excel prend certaines puces hexadécimales pour des nombres
+   * en notation scientifique (« 0116794E12 » devient 1,16794 × 10^17) : on les reconstitue.
+   */
+  function keyText(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'number' && Number.isInteger(v) && Math.abs(v) >= 1e12) {
+      const m = /^(\d)(?:\.(\d+))?e\+(\d+)$/.exec(v.toExponential());
+      if (m) {
+        const mant = m[1] + (m[2] || '');
+        return mant + 'E' + (Number(m[3]) - mant.length + 1);
+      }
+    }
+    return String(v);
+  }
+
   // Normalisation d'un identifiant : pas de conversion numérique (les puces RFID
   // dépassent la précision des nombres JS), uniquement casse / espaces / zéros en tête.
   function normalizeKey(v, opts) {
     if (v === null || v === undefined) return '';
-    let s = String(v).trim().replace(/\s+/g, '').toUpperCase();
+    let s = keyText(v).trim().replace(/\s+/g, '').toUpperCase();
     if (opts && opts.ignoreLeadingZeros) s = s.replace(/^0+(?=.)/, '');
+    // Forme canonique des puces de type « chiffres E chiffres » : « 116790E12 » ≡ « 11679E13 »
+    // (Excel ne permet pas de distinguer les deux une fois converties en nombre).
+    const m = /^(\d*?)(0*)E(\d+)$/.exec(s);
+    if (m && m[1]) s = m[1] + 'E' + (Number(m[3]) + m[2].length);
     return s;
   }
 
@@ -244,5 +264,5 @@
     return { total: rows.length, pairs, byTag, byField: Array.from(byField.values()), medianDistance: median };
   }
 
-  return { compare, normalizeKey, normalizeValue, haversine, CATEGORIES };
+  return { compare, keyText, normalizeKey, normalizeValue, haversine, CATEGORIES };
 });

@@ -80,3 +80,12 @@ test('jeu de démonstration : écarts cohérents', () => {
   assert.ok(t.identique > 1000);
   assert.strictEqual(res.stats.byField.find(f => f.a === 'adresse').count, 0, 'la casse est ignorée par défaut');
 });
+
+test('puce hexadécimale convertie par Excel en notation scientifique', () => {
+  const { keyText } = require('../js/compare.js');
+  assert.strictEqual(keyText(116794e12), '116794E12');          // « 0116794E12 » lu par Excel
+  assert.strictEqual(normalizeKey(116794e12, { ignoreLeadingZeros: true }), normalizeKey('0116794E12', { ignoreLeadingZeros: true }));
+  assert.strictEqual(normalizeKey(116790e12, { ignoreLeadingZeros: true }), normalizeKey('0116790E12', { ignoreLeadingZeros: true }));
+  assert.strictEqual(keyText(117068081), '117068081');          // nombre ordinaire inchangé
+  assert.strictEqual(keyText('011678954D'), '011678954D');
+});

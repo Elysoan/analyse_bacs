@@ -9,165 +9,274 @@
 </head>
 <body>
 <header class="topbar">
-  <h1>Analyse bacs <span>· comparateur de bases</span></h1>
-  <div class="topbar-actions">
-    <button id="btn-demo-levees" class="btn ghost">Exemple : bacs + levées</button>
-    <button id="btn-demo" class="btn ghost">Exemple : 2 inventaires</button>
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6 7l1.2 12.2A2 2 0 0 0 9.2 21h5.6a2 2 0 0 0 2-1.8L18 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <div><h1>Analyse bacs</h1><span>Base client × levées</span></div>
+  </div>
+  <div class="top-actions">
+    <button id="btn-toggle-side" class="btn ghost hidden" title="Afficher / masquer le panneau de réglages">⟨ Réglages</button>
+    <div class="menu">
+      <button id="btn-examples" class="btn ghost" aria-haspopup="true">Exemples ▾</button>
+      <div id="menu-examples" class="menu-pop hidden">
+        <button id="btn-demo-levees"><b>Bacs biodéchets + levées</b><span>Base client et une année de levées (fictives)</span></button>
+        <button id="btn-demo"><b>Deux inventaires de bacs</b><span>Base SIG contre base facturation (fictives)</span></button>
+      </div>
+    </div>
+    <button id="btn-help" class="btn ghost">? Aide</button>
   </div>
 </header>
 
-<div class="layout">
-  <!-- Panneau de configuration -->
-  <aside class="sidebar">
-    <section class="card">
-      <h2><span class="dot dot-a"></span>Base A · bacs</h2>
-      <input id="label-a" class="label-input" value="Base client" aria-label="Nom de la base A">
-      <label class="file"><input type="file" id="file-a" accept=".csv,.txt,.xlsx,.xlsm,.xls,.ods,.geojson,.json"><span>Choisir un fichier…</span></label>
-      <div id="sheet-a" class="field hidden"><label>Onglet</label><select></select></div>
-      <p id="info-a" class="muted"></p>
+<div class="layout" id="layout">
+  <!-- ============ Assistant (3 étapes) ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="steps">
 
-      <!-- Géocodage (base sans coordonnées) -->
-      <details id="geo-a" class="geo hidden">
-        <summary>Géocoder les adresses</summary>
-        <p class="muted">Pour placer les bacs sur la carte. Service public IGN : seules l'adresse et la commune sont envoyées.</p>
-        <div class="grid2">
-          <div class="field"><label>Numéro</label><select id="geo-numero"></select></div>
-          <div class="field"><label>Bis / ter</label><select id="geo-indice"></select></div>
-          <div class="field"><label>Type de voie</label><select id="geo-typeVoie"></select></div>
-          <div class="field"><label>Nom de voie</label><select id="geo-voie"></select></div>
-          <div class="field"><label>Code postal</label><select id="geo-cp"></select></div>
-          <div class="field"><label>Commune</label><select id="geo-commune"></select></div>
+      <section class="step" id="step-a">
+        <div class="step-head"><span class="step-num">1</span><div><h2>Base client</h2><p>Le référentiel des bacs</p></div></div>
+        <label class="drop" id="drop-a">
+          <input type="file" id="file-a" accept=".csv,.txt,.xlsx,.xlsm,.xls,.ods,.geojson,.json">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b>Déposer le fichier ici</b><span>ou cliquer pour parcourir · Excel, CSV, GeoJSON</span>
+        </label>
+        <div class="chip hidden" id="chip-a">
+          <span class="chip-icon">✓</span>
+          <div class="chip-text"><b id="name-a"></b><span id="info-a"></span></div>
+          <button class="link" data-change="a">Changer</button>
         </div>
-        <div class="field"><label>Code à retirer du nom de voie (devient la colonne « secteur »)</label><input id="geo-noise" placeholder="ex. LSO"></div>
-        <p id="geo-example" class="muted"></p>
-        <button id="btn-geocode" class="btn primary block">Géocoder</button>
-        <div id="geo-progress" class="progress hidden"><div></div></div>
-        <p id="geo-status" class="muted"></p>
-        <button id="btn-geo-export" class="btn block hidden">Télécharger la base géocodée (CSV)</button>
-      </details>
-    </section>
+        <div id="sheet-a" class="field hidden"><label>Onglet</label><select></select></div>
 
-    <section class="card">
-      <h2><span class="dot dot-b"></span>Base B</h2>
-      <input id="label-b" class="label-input" value="Levées" aria-label="Nom de la base B">
-      <label class="file"><input type="file" id="file-b" accept=".csv,.txt,.xlsx,.xlsm,.xls,.ods,.geojson,.json"><span>Choisir un fichier…</span></label>
-      <div id="sheet-b" class="field hidden"><label>Onglet</label><select></select></div>
-      <div class="field"><label>Contenu du fichier</label>
-        <select id="type-b">
-          <option value="levees">Historique de levées</option>
-          <option value="bacs">Autre inventaire de bacs</option>
-        </select>
-      </div>
-      <p id="info-b" class="muted"></p>
-    </section>
+        <details id="geo-a" class="geo hidden">
+          <summary>📍 Placer les bacs sur la carte <span class="muted">(géocodage des adresses)</span></summary>
+          <p class="muted">Service public IGN : seules l'adresse et la commune sont envoyées, jamais les noms.</p>
+          <div class="grid2">
+            <div class="field"><label>Numéro</label><select id="geo-numero"></select></div>
+            <div class="field"><label>Bis / ter</label><select id="geo-indice"></select></div>
+            <div class="field"><label>Type de voie</label><select id="geo-typeVoie"></select></div>
+            <div class="field"><label>Nom de voie</label><select id="geo-voie"></select></div>
+            <div class="field"><label>Code postal</label><select id="geo-cp"></select></div>
+            <div class="field"><label>Commune</label><select id="geo-commune"></select></div>
+          </div>
+          <div class="field"><label>Code à retirer du nom de voie (devient la colonne « secteur »)</label><input id="geo-noise" placeholder="ex. LSO"></div>
+          <p id="geo-example" class="example"></p>
+          <button id="btn-geocode" class="btn block">Géocoder</button>
+          <div id="geo-progress" class="progress hidden"><div></div></div>
+          <p id="geo-status" class="muted"></p>
+          <button id="btn-geo-export" class="btn ghost block hidden">Télécharger la base géocodée (CSV)</button>
+        </details>
+      </section>
 
-    <section id="config" class="card hidden">
-      <h2>Paramètres</h2>
-      <div class="seg only-bacs" role="radiogroup">
-        <label><input type="radio" name="mode" value="key" checked><span>Par identifiant</span></label>
-        <label><input type="radio" name="mode" value="spatial"><span>Par proximité</span></label>
-      </div>
-
-      <div class="grid2">
-        <div class="field"><label>Identifiant A</label><select id="key-a"></select></div>
-        <div class="field"><label>Identifiant B</label><select id="key-b"></select></div>
-      </div>
-      <p id="key-hint" class="muted"></p>
-
-      <div class="only-levees">
-        <div class="field"><label>Colonne flux des levées (option.)</label><select id="flux-b"></select></div>
-        <div id="flux-box" class="field hidden"><label>Flux à analyser (les autres servent au contrôle « levé sur un autre flux »)</label>
-          <div id="flux-values" class="flux-values"></div>
+      <section class="step" id="step-b">
+        <div class="step-head"><span class="step-num">2</span><div><h2>Levées</h2><p>L'export des levées (une ligne par levée)</p></div></div>
+        <label class="drop" id="drop-b">
+          <input type="file" id="file-b" accept=".csv,.txt,.xlsx,.xlsm,.xls,.ods,.geojson,.json">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b>Déposer le fichier ici</b><span>ou cliquer pour parcourir · jusqu'à ~1 million de lignes</span>
+        </label>
+        <div class="chip hidden" id="chip-b">
+          <span class="chip-icon">✓</span>
+          <div class="chip-text"><b id="name-b"></b><span id="info-b"></span></div>
+          <button class="link" data-change="b">Changer</button>
         </div>
-        <div class="grid2">
-          <div class="field"><label>Date de levée</label><select id="date-b"></select></div>
-          <div class="field"><label>Poids (option.)</label><select id="weight-b"></select></div>
-          <div class="field"><label>Date de livraison A (option.)</label><select id="date-a"></select></div>
-          <div class="field"><label>Nb levées déclaré A (option.)</label><select id="count-a"></select></div>
+        <div id="sheet-b" class="field hidden"><label>Onglet</label><select></select></div>
+        <div class="field hidden" id="type-b-box"><label>Ce fichier contient</label>
+          <select id="type-b">
+            <option value="levees">un historique de levées</option>
+            <option value="bacs">un autre inventaire de bacs (comparaison)</option>
+          </select>
         </div>
-        <div class="grid2">
-          <div class="field"><label>Taux faible si &lt; (%)</label><input type="number" id="seuil-taux" value="25" min="0" max="100"></div>
-          <div class="field"><label>Arrêt si aucune levée depuis (sem.)</label><input type="number" id="seuil-arret" value="8" min="1"></div>
+      </section>
+
+      <section class="step locked" id="step-c">
+        <div class="step-head"><span class="step-num">3</span><div><h2>Vérifier</h2><p>Colonnes détectées automatiquement</p></div></div>
+        <div id="config" class="hidden">
+          <div class="match">
+            <div class="field"><label>Identifiant client</label><select id="key-a"></select></div>
+            <span class="match-arrow">⇄</span>
+            <div class="field"><label id="key-b-label">Identifiant levées</label><select id="key-b"></select></div>
+          </div>
+          <p id="key-hint" class="hint"></p>
+
+          <div class="only-levees">
+            <div id="flux-box" class="field hidden">
+              <label>Flux analysés</label>
+              <div id="flux-values" class="pills"></div>
+            </div>
+            <div id="statut-box" class="field hidden">
+              <label>Levées retenues <span class="muted">(statut)</span></label>
+              <div id="statut-values" class="pills"></div>
+            </div>
+          </div>
+
+          <div class="seg only-bacs" role="radiogroup">
+            <label><input type="radio" name="mode" value="key" checked><span>Par identifiant</span></label>
+            <label><input type="radio" name="mode" value="spatial"><span>Par proximité</span></label>
+          </div>
+
+          <details class="advanced">
+            <summary>Réglages avancés</summary>
+
+            <h3>Seuils</h3>
+            <div class="grid2">
+              <div class="field only-levees"><label>Taux faible si &lt; (%)</label><input type="number" id="seuil-taux" value="25" min="0" max="100"></div>
+              <div class="field only-levees"><label>Arrêt si aucune levée depuis (sem.)</label><input type="number" id="seuil-arret" value="8" min="1"></div>
+              <div class="field opt-key"><label id="move-label">Seuil « déplacé » (m)</label><input type="number" id="move-threshold" value="20" min="0" step="1"></div>
+              <div class="field opt-spatial hidden"><label>Rayon de recherche (m)</label><input type="number" id="match-radius" value="15" min="1" step="1"></div>
+            </div>
+
+            <div class="only-levees">
+              <h3>Colonnes des levées</h3>
+              <div class="grid2">
+                <div class="field"><label>Date de levée</label><select id="date-b"></select></div>
+                <div class="field"><label>Flux</label><select id="flux-b"></select></div>
+                <div class="field"><label>Statut de levée</label><select id="statut-b"></select></div>
+                <div class="field"><label>Poids</label><select id="weight-b"></select></div>
+              </div>
+              <h3>Colonnes de la base client</h3>
+              <div class="grid2">
+                <div class="field"><label>Date de livraison</label><select id="date-a"></select></div>
+                <div class="field"><label>Nb de levées déclaré</label><select id="count-a"></select></div>
+              </div>
+            </div>
+
+            <h3>Coordonnées</h3>
+            <div class="grid3">
+              <div class="field"><label>X client</label><select id="x-a"></select></div>
+              <div class="field"><label>Y client</label><select id="y-a"></select></div>
+              <div class="field"><label>Système</label><select id="crs-a"></select></div>
+              <div class="field"><label id="x-b-label">X levées</label><select id="x-b"></select></div>
+              <div class="field"><label id="y-b-label">Y levées</label><select id="y-b"></select></div>
+              <div class="field"><label>Système</label><select id="crs-b"></select></div>
+            </div>
+
+            <h3 id="fields-title">Colonnes affichées</h3>
+            <div id="fields" class="fields"></div>
+
+            <h3>Divers</h3>
+            <label class="check"><input type="checkbox" id="opt-zeros"> Ignorer les zéros en tête des identifiants</label>
+            <label class="check"><input type="checkbox" id="opt-case" checked> Ignorer la casse</label>
+            <label class="check"><input type="checkbox" id="opt-accents"> Ignorer les accents</label>
+            <div class="grid2">
+              <div class="field"><label>Nom affiché base 1</label><input id="label-a" value="Base client"></div>
+              <div class="field"><label>Nom affiché base 2</label><input id="label-b" value="Levées"></div>
+            </div>
+          </details>
         </div>
-      </div>
-
-      <div class="field opt-key"><label id="move-label">Seuil « déplacé » (m)</label><input type="number" id="move-threshold" value="20" min="0" step="1"></div>
-      <div class="field opt-spatial hidden"><label>Rayon de recherche (m)</label><input type="number" id="match-radius" value="15" min="1" step="1"></div>
-
-      <h3>Coordonnées</h3>
-      <div class="grid3">
-        <div class="field"><label>X A</label><select id="x-a"></select></div>
-        <div class="field"><label>Y A</label><select id="y-a"></select></div>
-        <div class="field"><label>Système A</label><select id="crs-a"></select></div>
-        <div class="field"><label>X B</label><select id="x-b"></select></div>
-        <div class="field"><label>Y B</label><select id="y-b"></select></div>
-        <div class="field"><label>Système B</label><select id="crs-b"></select></div>
-      </div>
-
-      <h3 id="fields-title">Champs à comparer</h3>
-      <div id="fields" class="fields"></div>
-
-      <details class="opts">
-        <summary>Options de normalisation</summary>
-        <label class="check"><input type="checkbox" id="opt-case" checked> Ignorer la casse</label>
-        <label class="check"><input type="checkbox" id="opt-accents"> Ignorer les accents</label>
-        <label class="check"><input type="checkbox" id="opt-zeros"> Ignorer les zéros en tête des identifiants</label>
-      </details>
-
-      <button id="btn-compare" class="btn primary block">Analyser</button>
-      <p id="error" class="error hidden"></p>
-    </section>
-  </aside>
-
-  <!-- Résultats -->
-  <main class="main">
-    <div id="empty" class="empty">
-      <h2>Analyser une base de bacs</h2>
-      <ol>
-        <li><b>Base A</b> : la base de bacs du client (Excel, CSV ou GeoJSON). Sans coordonnées, utilisez « Géocoder les adresses ».</li>
-        <li><b>Base B</b> : l'historique des levées (une ligne par levée), ou un autre inventaire de bacs à comparer.</li>
-        <li>Vérifiez les colonnes proposées, puis lancez l'analyse.</li>
-      </ol>
-      <p class="muted">Les fichiers sont traités dans votre navigateur : rien n'est envoyé sur un serveur (sauf les adresses, si vous lancez le géocodage).
-        Un fichier de 800 000 levées prend environ 20 s à lire en Excel, 5 s en CSV.</p>
+      </section>
     </div>
 
-    <div id="busy" class="empty hidden"><h2>Analyse en cours…</h2><p id="busy-msg" class="muted"></p></div>
+    <div class="run">
+      <button id="btn-compare" class="btn primary block big" disabled>Lancer l'analyse</button>
+      <p id="run-hint" class="muted center">Chargez les deux fichiers pour commencer.</p>
+    </div>
+  </aside>
 
-    <div id="results" class="hidden">
+  <!-- ============ Résultats ============ -->
+  <main class="main">
+    <section id="empty" class="welcome">
+      <h2>Repérer en quelques clics les écarts entre la base client et les levées</h2>
+      <div class="howto">
+        <div><span class="n">1</span><b>Déposez la base client</b><p>Le référentiel des bacs (n° de puce, adresse, activité…).</p></div>
+        <div><span class="n">2</span><b>Déposez l'export des levées</b><p>Une ligne par levée : puce, date, flux, statut, GPS.</p></div>
+        <div><span class="n">3</span><b>Lancez l'analyse</b><p>Les colonnes sont reconnues toutes seules ; vous pouvez les corriger.</p></div>
+      </div>
+      <div class="welcome-finds">
+        <p><b>Vous obtenez :</b></p>
+        <ul>
+          <li>les <b>puces FFOM levées mais absentes de la base client</b>, sur la carte, avec leur nombre de levées ;</li>
+          <li>les bacs du client <b>levés sur un autre flux</b> (OMR…), avec le détail par flux ;</li>
+          <li>les bacs <b>jamais levés</b>, <b>plus levés</b> ou <b>peu présentés</b>, par activité, commune ou secteur ;</li>
+          <li>des exports CSV (Excel) et GeoJSON (ArcGIS Pro).</li>
+        </ul>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn primary" data-demo="levees">Essayer avec un exemple</button>
+        <span class="muted">🔒 Les fichiers restent sur votre poste : rien n'est envoyé sur un serveur.</span>
+      </div>
+    </section>
+
+    <section id="busy" class="busy hidden">
+      <div class="spinner"></div>
+      <h2>Analyse en cours…</h2>
+      <p id="busy-msg" class="muted"></p>
+    </section>
+
+    <section id="results" class="hidden">
+      <div class="results-head">
+        <div>
+          <h2>Résultats</h2>
+          <p id="context" class="muted"></p>
+        </div>
+        <div class="actions">
+          <button id="btn-export-csv" class="btn">⭳ Export CSV</button>
+          <button id="btn-export-geojson" class="btn">⭳ Export GeoJSON</button>
+        </div>
+      </div>
+
       <div id="kpis" class="kpis"></div>
 
       <div class="panes">
-        <div class="map-wrap"><div id="map"></div></div>
-        <div id="side" class="card side"></div>
+        <div class="card map-card" id="map-card">
+          <div class="card-tools">
+            <span id="map-title" class="card-title">Carte</span>
+            <span class="spacer"></span>
+            <button id="btn-map-size" class="btn ghost small">⤢ Agrandir</button>
+          </div>
+          <div id="map"></div>
+        </div>
+        <div class="card side">
+          <div class="tabs" id="side-tabs"></div>
+          <div id="side"></div>
+        </div>
       </div>
 
-      <div class="card synth">
-        <div class="table-tools">
-          <h3>Synthèse par</h3>
+      <div class="card">
+        <div class="card-tools">
+          <span class="card-title">Synthèse par</span>
           <select id="group-by"></select>
+          <span class="muted">Cliquez une ligne pour filtrer</span>
         </div>
         <div class="table-scroll short"><table id="synth" class="grid"></table></div>
       </div>
 
       <div class="card table-card">
-        <div class="table-tools">
-          <input id="search" type="search" placeholder="Rechercher (identifiant, adresse, nom…)">
-          <span id="filter-badge" class="badge hidden"></span>
+        <div class="card-tools">
+          <span class="card-title" id="table-title">Détail</span>
+          <input id="search" type="search" placeholder="Rechercher une puce, une adresse, un nom…">
+          <span id="filter-badge" class="badge hidden" title="Retirer les filtres"></span>
           <span class="spacer"></span>
-          <button id="btn-export-csv" class="btn">Export CSV</button>
-          <button id="btn-export-geojson" class="btn">Export GeoJSON</button>
+          <span id="page-info" class="muted"></span>
+          <button id="prev" class="btn ghost small" aria-label="Page précédente">‹</button>
+          <button id="next" class="btn ghost small" aria-label="Page suivante">›</button>
         </div>
         <div class="table-scroll"><table id="table" class="grid"></table></div>
-        <div class="pager">
-          <button id="prev" class="btn ghost">‹</button>
-          <span id="page-info"></span>
-          <button id="next" class="btn ghost">›</button>
-        </div>
       </div>
-    </div>
+    </section>
   </main>
 </div>
+
+<!-- Aide -->
+<dialog id="help">
+  <div class="help">
+    <div class="help-head"><h2>Comment ça marche</h2><button class="btn ghost small" data-close>✕</button></div>
+    <ol>
+      <li><b>Base client</b> : déposez le fichier des bacs (une ligne par bac). Sans coordonnées, ouvrez « Placer les bacs sur la carte » pour géocoder les adresses.</li>
+      <li><b>Levées</b> : déposez l'export des levées. 800 000 lignes Excel ≈ 20 s de lecture.</li>
+      <li><b>Vérifier</b> : l'outil propose les colonnes (puce, date, flux, statut, GPS) et les flux à analyser. Corrigez si besoin, puis <b>Lancer l'analyse</b>.</li>
+      <li><b>Explorer</b> : cliquez un indicateur, une ligne de synthèse ou un flux pour filtrer la carte et le tableau ; cliquez un bac pour le localiser. Exportez la sélection en CSV ou GeoJSON.</li>
+    </ol>
+    <h3>Les indicateurs</h3>
+    <dl id="help-defs"></dl>
+    <h3>Bon à savoir</h3>
+    <ul>
+      <li>Les identifiants sont rapprochés même si Excel a supprimé le 0 en tête (<code>0117068081</code> ↔ <code>117068081</code>) ou transformé une puce en nombre scientifique (<code>0116794E12</code> ↔ <code>1,16794E+17</code>).</li>
+      <li>La position d'une puce absente de la base client est le point médian de ses levées (GPS du camion).</li>
+      <li>Rien ne quitte votre poste, sauf les adresses si vous lancez le géocodage.</li>
+    </ul>
+  </div>
+</dialog>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="tip" class="tip hidden"></div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/papaparse.min.js"></script>
