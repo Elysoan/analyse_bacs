@@ -103,5 +103,103 @@
     return { sig, metier };
   }
 
-  return { generate };
+  /*
+   * Base client biodéchets (même structure que l'export agglo) + une année de levées.
+   * Noms et adresses fictifs. Coordonnées ajoutées à la base client pour que la démo
+   * fonctionne hors-ligne (la vraie base, sans coordonnées, passe par le géocodage).
+   */
+  const NOMS = ['MARTIN', 'BERNARD', 'THOMAS', 'PETIT', 'ROBERT', 'RICHARD', 'DURAND', 'LEROY', 'MOREAU', 'SIMON',
+    'LAURENT', 'LEFEBVRE', 'MICHEL', 'GARCIA', 'DAVID', 'BERTRAND', 'ROUX', 'VINCENT', 'FOURNIER', 'MOREL'];
+  const PRENOMS = ['MARIE', 'JEAN', 'ANNE', 'PIERRE', 'SOPHIE', 'LUC', 'CLAIRE', 'PAUL', 'JULIE', 'ALAIN'];
+  const VOIES = [['RUE', 'DES', 'MOUETTES'], ['AVENUE', 'DE LA', 'PLAGE'], ['RUE', 'DU', 'PORT'], ['IMPASSE', 'DES', 'PINS'],
+    ['RUE', 'DES', 'SALINES'], ['ROUTE', 'DE LA', 'FORET'], ['RUE', 'DES', 'DUNES'], ['ALLEE', 'DES', 'GOELANDS'],
+    ['RUE', 'DU', 'MARAIS'], ['CHEMIN', 'DES', 'VIGNES'], ['RUE', 'DE LA', 'JETEE'], ['AVENUE', 'DES', 'SABLES']];
+  const COMMUNES_LSO = ["LES SABLES D'OLONNE", 'OLONNE SUR MER', "LE CHATEAU D'OLONNE"];
+  const ACTIVITES = [['Habitation individuelle', 0.85], ['Immeuble collectif/Appart', 0.10], ['Bâtiment public', 0.05]];
+
+  function generateLevees(n, seed) {
+    n = n || 1500;
+    const r = rng(seed || 7);
+    const pick = arr => arr[Math.floor(r() * arr.length)];
+    const p2 = x => String(x).padStart(2, '0');
+    const JOUR = 86400000;
+    const debut = Date.UTC(2025, 0, 1) / JOUR, fin = Date.UTC(2025, 11, 31) / JOUR;
+    const trouDebut = Date.UTC(2025, 7, 11) / JOUR, trouFin = Date.UTC(2025, 7, 24) / JOUR; // export incomplet
+    const fmtDate = d => { const t = new Date(d * JOUR); return p2(t.getUTCDate()) + '/' + p2(t.getUTCMonth() + 1) + '/' + t.getUTCFullYear(); };
+    const centre = [46.4967, -1.7831];
+
+    const clients = [], levees = [];
+    const ajouterLevees = (puce, secteur, lat, lon, p, du, au, decalage) => {
+      let nb = 0;
+      const jourCollecte = secteur % 5; // 0 = lundi
+      for (let lundi = debut - ((debut + 3) % 7); lundi <= fin; lundi += 7) {
+        const d = lundi + jourCollecte;
+        if (d < du || d > au || d < debut || d > fin || (d >= trouDebut && d <= trouFin)) continue;
+        if (r() > p) continue;
+        nb++;
+        const [la, lo] = offset(lat, lon, decalage + r() * 15, r);
+        levees.push({
+          'Date levée': fmtDate(d) + ' ' + p2(6 + Math.floor(r() * 7)) + ':' + p2(Math.floor(r() * 60)),
+          'Code puce': r() < 0.003 ? '' : Number(puce), // zéro en tête perdu, comme souvent dans les exports
+          'Tournée': 'LSO ' + secteur,
+          'Véhicule': 'BOM-' + (1 + secteur % 4),
+          'Poids (kg)': Math.round((3 + r() * 22) * 10) / 10,
+          'Latitude': +la.toFixed(6),
+          'Longitude': +lo.toFixed(6)
+        });
+      }
+      return nb;
+    };
+
+    for (let i = 0; i < n; i++) {
+      const secteur = 1 + Math.floor(r() * 14);
+      const [lat, lon] = offset(centre[0], centre[1], 300 + r() * 3500, r);
+      const v = pick(VOIES);
+      const u = r();
+      const activite = u < ACTIVITES[0][1] ? ACTIVITES[0][0] : u < ACTIVITES[0][1] + ACTIVITES[1][1] ? ACTIVITES[1][0] : ACTIVITES[2][0];
+      const puce = '0116' + String(772000 + i * 7).padStart(6, '0');
+      // Livraison : majorité avant la période, 10 % en cours d'année, 3 % en décembre.
+      const w = r();
+      const livraison = w < 0.03 ? fin - 3 - Math.floor(r() * 20) : w < 0.13 ? debut + 30 + Math.floor(r() * 280) : debut - 30 - Math.floor(r() * 300);
+      const lt = new Date(livraison * JOUR);
+      // Probabilité de présentation hebdomadaire (plus forte en collectif).
+      const pr = r();
+      let p = activite === 'Habitation individuelle' ? (pr < 0.15 ? 0.05 + r() * 0.15 : 0.3 + r() * 0.65) : 0.75 + r() * 0.25;
+      const profil = r();
+      let au = fin, decalage = 0;
+      if (profil < 0.04) p = 0;                                   // jamais levé
+      else if (profil < 0.08) au = debut + 120 + Math.floor(r() * 150); // plus levé (bac retiré ?)
+      else if (profil < 0.10) decalage = 150 + r() * 250;         // adresse fausse
+      const nb = ajouterLevees(puce, secteur, lat, lon, p, livraison, au, decalage);
+
+      clients.push({
+        'Nom commune': pick(COMMUNES_LSO),
+        'Numéro': 1 + Math.floor(r() * 150),
+        'Bis/ter': r() < 0.05 ? pick(['BIS', 'B', 'TER']) : '',
+        'Type de voie': v[0] + ' ' + v[1],
+        'Nom de la voie': v[2] + ' LSO ' + secteur,
+        'Nom': activite === 'Bâtiment public' ? 'MAIRIE ANNEXE ' + (1 + i % 9) : pick(NOMS),
+        'Prénom': activite === 'Habitation individuelle' ? pick(PRENOMS) : '',
+        'Activité': activite,
+        'Type de récipient': 'Bio dechet marron ' + (activite === 'Habitation individuelle' ? 120 : pick([120, 240, 400])) + ' L',
+        'Code cuve': 120000000 + Math.floor(r() * 900000),
+        'Code puce': puce,
+        'Date livraison': p2(lt.getUTCDate()) + '/' + p2(lt.getUTCMonth() + 1) + '/' + lt.getUTCFullYear(),
+        'Nombre d’apparitions sur une année glissante': r() < 0.05 ? Math.floor(r() * 40) : nb,
+        'Latitude': +lat.toFixed(6),
+        'Longitude': +lon.toFixed(6)
+      });
+    }
+
+    // Puces levées mais absentes de la base client.
+    for (let j = 0; j < 50; j++) {
+      const [lat, lon] = offset(centre[0], centre[1], 300 + r() * 3500, r);
+      ajouterLevees('0116' + String(990000 + j), 1 + (j % 14), lat, lon, 0.6, debut, fin, 0);
+    }
+    levees.sort((a, b) => a['Date levée'].slice(6, 10) + a['Date levée'].slice(3, 5) + a['Date levée'].slice(0, 2) <
+      b['Date levée'].slice(6, 10) + b['Date levée'].slice(3, 5) + b['Date levée'].slice(0, 2) ? -1 : 1);
+    return { clients, levees };
+  }
+
+  return { generate, generateLevees };
 });

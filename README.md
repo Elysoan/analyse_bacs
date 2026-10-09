@@ -1,17 +1,46 @@
 # Analyse bacs — comparateur de bases
 
-Outil web pour comparer deux inventaires de bacs (ex. **base SIG** vs **base métier / facturation**) avec une **carte** et des **tableaux**.
+Outil web pour analyser une base de bacs avec une **carte** et des **tableaux**, selon deux usages :
+
+1. **Base de bacs + historique de levées** : quels bacs ne sont jamais levés, plus levés, peu présentés, quelles puces sont levées sans être référencées (bacs à facturer).
+2. **Deux inventaires de bacs** (ex. base SIG vs base facturation) : bacs manquants, attributs différents, bacs déplacés.
 
 - 100 % navigateur : les fichiers ne quittent jamais le poste, aucun serveur ni installation.
-- Fonctionne hors-ligne (seuls les fonds de carte IGN/OSM nécessitent Internet).
+- Fonctionne hors-ligne (sauf fonds de carte et géocodage).
 
 ## Démarrer
 
-1. Ouvrir `index.html` dans Chrome, Edge ou Firefox (double-clic suffit).
-2. Cliquer sur **Charger l'exemple** pour voir le résultat sur un jeu fictif de 1 500 bacs,
-   ou charger ses propres fichiers dans *Base A* et *Base B*.
+1. Ouvrir `index.html` dans Chrome ou Edge (double-clic suffit).
+2. Pour découvrir l'outil : **Exemple : bacs + levées** ou **Exemple : 2 inventaires** (données fictives).
+3. Sinon : charger la base de bacs en *Base A*, les levées (ou l'autre inventaire) en *Base B*, vérifier les colonnes proposées, puis **Analyser**.
 
-Fichiers d'exemple réalistes dans `exemples/` : un CSV en Lambert 93 (`;`, encodage Windows-1252) et un Excel à deux onglets.
+## Analyse des levées
+
+Les levées sont agrégées par bac (identifiant puce ou n° de bac), puis rapprochées de la base client.
+
+| Indicateur | Définition |
+|---|---|
+| Levés régulièrement | taux de présentation ≥ seuil (25 % par défaut) |
+| Taux de présentation faible | semaines avec au moins une levée / semaines où le bac était en service (date de livraison prise en compte) |
+| Sans levée depuis ≥ N semaines | bac levé dans l'année mais plus depuis 8 semaines (retiré ? vacant ?) |
+| Jamais levés | présent dans la base client, aucune levée sur la période |
+| Livrés récemment | jamais levé mais livré moins de N semaines avant la fin de la période (non compté comme anomalie) |
+| Puces levées non référencées | levées sur un identifiant absent de la base client, avec le nombre de levées concernées |
+| Écart de position | distance bac (base client) ↔ position médiane de ses levées > seuil (50 m), si les deux ont des coordonnées |
+
+Également : levées par mois (repère les mois manquants dans l'export), répartition des taux, contrôle du « nombre d'apparitions » déclaré dans la base client, **synthèse par activité / secteur / commune**.
+
+Colonnes détectées automatiquement (modifiables) : identifiants communs (y compris si les zéros en tête diffèrent, ex. `0116772441` vs `116772441`), date de levée, poids, date de livraison, nombre de levées déclaré.
+
+**Volumes testés** : 800 000 levées en Excel → lecture ≈ 16 s, analyse ≈ 3 s, ≈ 600 Mo de mémoire (Chrome). Un export CSV est 3 à 4 fois plus rapide à lire.
+
+## Géocodage (base sans coordonnées)
+
+Si la base de bacs n'a que des adresses, le panneau **Géocoder les adresses** (Base A) les envoie au service public de l'IGN (Géoplateforme, ex-API Adresse / BAN) :
+- seules l'adresse et la commune sont transmises (pas les noms) ;
+- un code parasite en fin de nom de voie (ex. `LSO 8`) est retiré et conservé dans une colonne `secteur` ;
+- les résultats sont mémorisés dans le navigateur, et la base géocodée peut être téléchargée en CSV pour les fois suivantes ;
+- `geo_score` < 0,5 = position approximative à vérifier.
 
 ## Formats acceptés
 
@@ -23,7 +52,7 @@ Fichiers d'exemple réalistes dans `exemples/` : un CSV en Lambert 93 (`;`, enco
 
 Coordonnées : **WGS84**, **Lambert 93** ou **Web Mercator**, détectées automatiquement (modifiables). Décimales à virgule acceptées.
 
-## Comparaison
+## Comparaison de deux inventaires
 
 **Par identifiant** (n° de bac, puce RFID…) — recommandé quand une clé commune existe :
 
@@ -56,7 +85,9 @@ Normalisation avant comparaison : espaces, casse (option), accents (option), nom
 
 ```
 js/compare.js   moteur de comparaison (sans dépendance, testé sous Node)
-js/io.js        lecture CSV/Excel/GeoJSON, projections, exports
+js/levees.js    agrégation des levées et indicateurs (sans dépendance, testé sous Node)
+js/io.js        lecture CSV/Excel/GeoJSON (gros fichiers par paquets), projections, exports
+js/geocode.js   géocodage IGN (envoi groupé, repli adresse par adresse, cache)
 js/app.js       interface (carte Leaflet, tableaux, filtres)
 js/demo.js      générateur du jeu d'exemple
 vendor/         Leaflet 1.9.4, PapaParse 5.4.1, SheetJS 0.18.5, proj4 2.11.0
@@ -66,5 +97,7 @@ vendor/         Leaflet 1.9.4, PapaParse 5.4.1, SheetJS 0.18.5, proj4 2.11.0
 - Serveur local optionnel : `npm start` puis http://localhost:8080.
 
 Limites connues :
-- Fluide jusqu'à quelques dizaines de milliers de bacs ; au-delà, prévoir un regroupement des points sur la carte.
+- Carte fluide jusqu'à quelques dizaines de milliers de bacs ; au-delà, prévoir un regroupement des points.
+- Au-delà d'environ 1 million de levées en Excel, préférer un export CSV (mémoire du navigateur).
+- Le taux de présentation suppose une collecte hebdomadaire ; la première et la dernière semaine de la période peuvent être incomplètes.
 - SheetJS 0.18.5 (dernière version publiée sur npm) a des vulnérabilités connues sur des fichiers Excel piégés : sans risque pour vos propres exports, mais remplacer `vendor/xlsx.full.min.js` par la version 0.20.x de https://cdn.sheetjs.com si l'outil doit lire des fichiers d'origine inconnue.
