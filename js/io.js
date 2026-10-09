@@ -51,7 +51,8 @@
       preview: s => sheets[s].slice(0, PREVIEW),
       count: s => sheets[s].length,
       all: s => sheets[s],
-      each: (s, f) => sheets[s].forEach(f)
+      each: (s, f) => sheets[s].forEach(f),
+      distinct: (s, col) => countValues(f => sheets[s].forEach(f), col)
     };
   }
 
@@ -71,7 +72,8 @@
       each: (s, f) => {
         if (full) return full.forEach(f);
         Papa.parse(text, Object.assign({ step: r => f(r.data) }, opts));
-      }
+      },
+      distinct(s, col) { return countValues(f => this.each(s, f), col); }
     };
   }
 
@@ -110,8 +112,36 @@
         if (!x.ref) return;
         if (x.full) return x.full.forEach(f);
         for (let r = x.ref.s.r + 1; r <= x.ref.e.r; r += CHUNK) x.rows(r, Math.min(x.ref.e.r, r + CHUNK - 1)).forEach(f);
+      },
+      distinct: (s, col) => {
+        const x = sheet(s);
+        const ci = x.headers.indexOf(col);
+        if (!x.ref || ci < 0) return [];
+        const ws = wb.Sheets[s], c = x.ref.s.c + ci;
+        return countValues(f => {
+          for (let r = x.ref.s.r + 1; r <= x.ref.e.r; r++) {
+            const cell = Array.isArray(ws) ? (ws[r] || [])[c] : ws[XLSX.utils.encode_cell({ r, c })];
+            f({ [col]: cell ? cell.v : '' });
+          }
+        }, col);
       }
     };
+  }
+
+  // Valeurs distinctes d'une colonne avec leur nombre d'occurrences (au plus 200 valeurs).
+  function countValues(iterate, col) {
+    const m = new Map();
+    iterate(row => {
+      const v = row[col];
+      const k = v === undefined || v === null || String(v).trim() === '' ? '(vide)' : String(v).trim();
+      if (m.has(k) || m.size < 200) m.set(k, (m.get(k) || 0) + 1);
+    });
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }
+
+  function guessFlux(rows, cols) {
+    return cols.find(c => /flux|fili[eè]re|nature.*d[ée]chet|type.*d[ée]chet|produit/i.test(c) &&
+      new Set(rows.map(r => r[c])).size <= 30) || '';
   }
 
   // Les dates Excel sont des nombres de jours : on les écrit nous-mêmes en jj/mm/aaaa [hh:mm]
@@ -309,7 +339,7 @@
   }
 
   root.IO = {
-    CRS, readFile, arraySource, columnsOf, guessXY, guessKey, guessKeyPair, guessDate, guessWeight, dateRatio,
+    CRS, readFile, arraySource, columnsOf, guessXY, guessKey, guessKeyPair, guessDate, guessWeight, guessFlux, dateRatio,
     guessCRS, projector, toRecords, toNumber, download, toCSV
   };
 })(window);

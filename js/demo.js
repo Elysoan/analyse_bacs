@@ -129,7 +129,7 @@
     const centre = [46.4967, -1.7831];
 
     const clients = [], levees = [];
-    const ajouterLevees = (puce, secteur, lat, lon, p, du, au, decalage) => {
+    const ajouterLevees = (puce, secteur, lat, lon, p, du, au, decalage, flux) => {
       let nb = 0;
       const jourCollecte = secteur % 5; // 0 = lundi
       for (let lundi = debut - ((debut + 3) % 7); lundi <= fin; lundi += 7) {
@@ -141,6 +141,7 @@
         levees.push({
           'Date levée': fmtDate(d) + ' ' + p2(6 + Math.floor(r() * 7)) + ':' + p2(Math.floor(r() * 60)),
           'Code puce': r() < 0.003 ? '' : Number(puce), // zéro en tête perdu, comme souvent dans les exports
+          'Flux': flux || 'FFOM',
           'Tournée': 'LSO ' + secteur,
           'Véhicule': 'BOM-' + (1 + secteur % 4),
           'Poids (kg)': Math.round((3 + r() * 22) * 10) / 10,
@@ -171,6 +172,8 @@
       else if (profil < 0.08) au = debut + 120 + Math.floor(r() * 150); // plus levé (bac retiré ?)
       else if (profil < 0.10) decalage = 150 + r() * 250;         // adresse fausse
       const nb = ajouterLevees(puce, secteur, lat, lon, p, livraison, au, decalage);
+      // 3 % des bacs biodéchets vidés quelques fois par la tournée OMR (erreur de tournée ou de puce).
+      if (r() < 0.03) ajouterLevees(puce, secteur, lat, lon, 0.06, debut, fin, 0, 'OMR');
 
       clients.push({
         'Nom commune': pick(COMMUNES_LSO),
@@ -195,6 +198,11 @@
     for (let j = 0; j < 50; j++) {
       const [lat, lon] = offset(centre[0], centre[1], 300 + r() * 3500, r);
       ajouterLevees('0116' + String(990000 + j), 1 + (j % 14), lat, lon, 0.6, debut, fin, 0);
+    }
+    // Autres flux collectés sur le territoire (bacs hors base biodéchets).
+    for (let j = 0; j < 250; j++) {
+      const [lat, lon] = offset(centre[0], centre[1], 300 + r() * 3500, r);
+      ajouterLevees('0117' + String(500000 + j), 1 + (j % 14), lat, lon, 0.8, debut, fin, 0, j < 180 ? 'OMR' : 'CS');
     }
     levees.sort((a, b) => a['Date levée'].slice(6, 10) + a['Date levée'].slice(3, 5) + a['Date levée'].slice(0, 2) <
       b['Date levée'].slice(6, 10) + b['Date levée'].slice(3, 5) + b['Date levée'].slice(0, 2) ? -1 : 1);

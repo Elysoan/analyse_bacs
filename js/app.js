@@ -22,6 +22,7 @@
       seulA: { label: 'Jamais levés', color: '--c-seulA' },
       recent: { label: 'Livrés récemment, pas encore levés', color: '--c-recent' },
       seulB: { label: 'Puces levées non référencées', color: '--c-seulB' },
+      autre_flux: { label: 'Levés aussi sur un autre flux', color: '--c-autre' },
       deplace: { label: 'Écart de position', color: '--c-deplace' }
     }
   };
@@ -29,14 +30,14 @@
     bacs: { identique: 'identique', attributs: 'attributs', deplace: 'déplacé', seulA: 'seul A', seulB: 'seul B',
       doublon: 'doublon', sans_cle: 'sans identifiant', sans_coord: 'sans coordonnées' },
     levees: { identique: 'régulier', faible: 'taux faible', arret: 'arrêt', seulA: 'jamais levé', recent: 'récent',
-      seulB: 'non référencé', deplace: 'écart position', doublon: 'doublon', sans_cle: 'sans identifiant' }
+      seulB: 'non référencé', autre_flux: 'autre flux', deplace: 'écart position', doublon: 'doublon', sans_cle: 'sans identifiant' }
   };
   const TRANCHES = ['0 % (jamais levé)', '1 – 24 %', '25 – 49 %', '50 – 74 %', '75 – 100 %'];
 
   const state = {
     src: { A: null, B: null },       // { source, sheet, preview, cols, count }
     result: null, opts: null,
-    filter: { tag: null, field: null, tranche: null, group: null, search: '' },
+    filter: { tag: null, field: null, tranche: null, group: null, flux: null, search: '' },
     sort: { col: null, asc: true },
     page: 0, filtered: []
   };
@@ -57,12 +58,19 @@
     if (lev()) {
       c.faible.label = `Taux de présentation < ${o.seuilTaux} %`;
       c.arret.label = `Sans levée depuis ≥ ${o.seuilArret} sem.`;
+      const fl = fluxLabel();
+      if (fl) {
+        c.seulA.label = `Jamais levés en ${fl}`;
+        c.seulB.label = `Puces ${fl} levées, absentes de ${label('A')}`;
+        c.autre_flux.label = `Bacs ${label('A')} levés aussi hors ${fl}`;
+      } else delete c.autre_flux;
     } else {
       c.seulA.label = 'Uniquement dans ' + label('A');
       c.seulB.label = 'Uniquement dans ' + label('B');
     }
     return c;
   }
+  const fluxLabel = () => state.opts && state.opts.fluxKeep ? Array.from(state.opts.fluxKeep).join(', ') : '';
   const tagLabel = t => TAGS[lev() ? 'levees' : 'bacs'][t] || t;
   const priority = () => lev() ? Levees.PRIORITE : Compare.CATEGORIES;
 
@@ -226,7 +234,7 @@
   }
 
   const normName = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const CONFIG_SELECTS = ['key-a', 'key-b', 'x-a', 'y-a', 'crs-a', 'x-b', 'y-b', 'crs-b', 'date-b', 'weight-b', 'date-a', 'count-a'];
+  const CONFIG_SELECTS = ['flux-b', 'key-a', 'key-b', 'x-a', 'y-a', 'crs-a', 'x-b', 'y-b', 'crs-b', 'date-b', 'weight-b', 'date-a', 'count-a'];
 
   function updateModeUI() {
     const levees = isLevees();
@@ -269,6 +277,7 @@
 
     fillSelect($('date-b'), plainB, IO.guessDate(B.preview, plainB), true);
     fillSelect($('weight-b'), plainB, IO.guessWeight(plainB), true);
+    fillSelect($('flux-b'), plainB, IO.guessFlux(B.preview, plainB), true);
     fillSelect($('date-a'), plainA, plainA.find(c => /livraison|mise en service|date.?pose|install/i.test(c)), true);
     fillSelect($('count-a'), plainA, plainA.find(c => /apparition|nb.*lev|nombre.*lev|pr[ée]sentation|passage/i.test(c)), true);
 
@@ -276,6 +285,7 @@
     else buildFieldPairs(plainA, plainB, pair.a);
 
     if (preserve) CONFIG_SELECTS.forEach(id => { if (prev[id] && $(id).querySelector(`option[value="${CSS.escape(prev[id])}"]`)) $(id).value = prev[id]; });
+    fillFluxValues(preserve);
 
     const group = $('group-by');
     fillSelect(group, plainA, plainA.find(c => /activit/i.test(c)) || plainA.find(c => /^secteur$/i.test(c)) ||
@@ -315,6 +325,23 @@
   $('type-b').addEventListener('change', () => { if (state.src.A && state.src.B) buildConfig(true); else updateModeUI(); });
   document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', updateModeUI));
 
+  // Valeurs de la colonne flux (sur tout le fichier), cochées par défaut si elles évoquent les biodéchets.
+  let fluxCols = null;
+  function fillFluxValues(preserve) {
+    const col = $('flux-b').value;
+    $('flux-box').classList.toggle('hidden', !col);
+    if (!col) { $('flux-values').innerHTML = ''; return; }
+    const prevChecked = preserve && fluxCols === col
+      ? new Set(Array.from($('flux-values').querySelectorAll('input:checked')).map(i => i.value)) : null;
+    const B = state.src.B;
+    const values = B.source.distinct ? B.source.distinct(B.sheet, col) : [];
+    const bio = values.filter(([v]) => /ffom|bio|ferment|alimentaire|d[ée]chets? verts?/i.test(v)).map(([v]) => v);
+    const def = new Set(bio.length ? bio : values.map(([v]) => v));
+    $('flux-values').innerHTML = values.map(([v, n], i) => `<label class="check"><input type="checkbox" value="${esc(v)}" ${(prevChecked || def).has(v) ? 'checked' : ''}> ${esc(v)} <span class="muted">${fmt(n)}</span></label>`).join('');
+    fluxCols = col;
+  }
+  $('flux-b').addEventListener('change', () => fillFluxValues(false));
+
   function readOptions() {
     const levees = isLevees();
     const fieldPairs = [], display = [];
@@ -331,6 +358,8 @@
       matchRadius: Number($('match-radius').value) || 15,
       fieldPairs, display,
       dateCol: $('date-b').value, weightCol: $('weight-b').value,
+      fluxCol: levees ? $('flux-b').value : '',
+      fluxKeep: levees && $('flux-b').value ? new Set(Array.from($('flux-values').querySelectorAll('input:checked')).map(i => i.value)) : null,
       dateA: $('date-a').value, countA: $('count-a').value,
       seuilTaux: Number($('seuil-taux').value) || 0,
       seuilArret: Number($('seuil-arret').value) || 8,
@@ -357,15 +386,18 @@
       let result;
       if (opts.mode === 'levees') {
         if (!opts.keyA || !opts.keyB || !opts.dateCol) throw new Error('Choisissez les deux colonnes identifiant et la colonne date de levée.');
+        if (opts.fluxKeep && !opts.fluxKeep.size) throw new Error('Cochez au moins un flux à analyser.');
         const agg = Levees.createAggregator({
           keyCol: opts.keyB, dateCol: opts.dateCol, weightCol: opts.weightCol,
           xCol: $('x-b').value, yCol: $('y-b').value, project: IO.projector($('crs-b').value),
+          fluxCol: opts.fluxCol, fluxKeep: opts.fluxKeep,
           ignoreLeadingZeros: opts.ignoreLeadingZeros
         });
         B.source.each(B.sheet, agg.add);
         const ag = agg.result();
         if (!ag.stats.levees) {
-          throw new Error(`Aucune levée exploitable sur ${fmt(ag.stats.lignes)} lignes (${fmt(ag.stats.dateInvalide)} dates illisibles, ${fmt(ag.stats.sansCle)} sans identifiant). Vérifiez les colonnes date et identifiant.`);
+          throw new Error(`Aucune levée exploitable sur ${fmt(ag.stats.lignes)} lignes (${fmt(ag.stats.dateInvalide)} dates illisibles, ${fmt(ag.stats.sansCle)} sans identifiant` +
+            (ag.stats.autresFlux ? `, ${fmt(ag.stats.autresFlux)} sur des flux non cochés` : '') + '). Vérifiez les colonnes date, identifiant et flux.');
         }
         result = Levees.analyser(recA, ag, opts);
       } else {
@@ -378,7 +410,7 @@
       result.rows.forEach((r, i) => { r._i = i; });
       state.result = result;
       state.opts = opts;
-      state.filter = { tag: null, field: null, tranche: null, group: null, search: '' };
+      state.filter = { tag: null, field: null, tranche: null, group: null, flux: null, search: '' };
       state.sort = { col: null, asc: true };
       state.page = 0;
       $('search').value = '';
@@ -441,10 +473,18 @@
     let html;
     if (lev()) {
       const L = stats.levees;
-      html = `<h3>Levées analysées</h3><table class="mini">
+      html = '';
+      if (state.opts.fluxCol && L.flux.length) {
+        const maxF = Math.max(...L.flux.map(f => f.levees));
+        html += `<h3>Levées par flux</h3><table class="mini"><tr><th>Flux</th><th class="n">Levées</th><th class="n">Puces</th></tr>` +
+          L.flux.map(f => barRow(`class="clickable ${f.retenu ? '' : 'off'} ${state.filter.flux === f.flux ? 'active' : ''}" data-flux="${esc(f.flux)}"`,
+            esc(f.flux) + (f.retenu ? ' ✓' : ''), f.levees, maxF, `<td class="n">${fmt(f.puces)}</td>`)).join('') +
+          `</table><p class="muted">✓ = flux analysé. Cliquez un flux pour lister les bacs du client et les puces ${esc(fluxLabel())} levés sur ce flux. Les puces levées uniquement sur un autre flux et absentes de ${esc(label('A'))} sont comptées ici mais pas listées.</p>`;
+      }
+      html += `<h3>Levées analysées</h3><table class="mini">
         <tr><td>Période</td><td class="n">${Levees.formatDay(L.debut)} → ${Levees.formatDay(L.fin)}</td></tr>
         <tr><td>Semaines</td><td class="n">${fmt(L.semainesPeriode)}</td></tr>
-        <tr><td>Levées exploitées</td><td class="n">${fmt(L.levees)}</td></tr>
+        <tr><td>Levées exploitées${fluxLabel() ? ' (' + esc(fluxLabel()) + ')' : ''}</td><td class="n">${fmt(L.levees)}</td></tr>
         ${L.sansCle ? `<tr><td>Levées sans identifiant</td><td class="n">${fmt(L.sansCle)}</td></tr>` : ''}
         ${L.dateInvalide ? `<tr><td>Dates illisibles</td><td class="n">${fmt(L.dateInvalide)}</td></tr>` : ''}
         <tr><td>Taux de présentation médian</td><td class="n">${stats.tauxMedian === null ? '—' : fmt(stats.tauxMedian) + ' %'}</td></tr>
@@ -491,6 +531,10 @@
     $('side').innerHTML = html;
     $('side').querySelectorAll('tr[data-field]').forEach(tr => tr.addEventListener('click', () => {
       state.filter.field = state.filter.field === tr.dataset.field ? null : tr.dataset.field;
+      state.page = 0; renderSide(); applyFilters();
+    }));
+    $('side').querySelectorAll('tr[data-flux]').forEach(tr => tr.addEventListener('click', () => {
+      state.filter.flux = state.filter.flux === tr.dataset.flux ? null : tr.dataset.flux;
       state.page = 0; renderSide(); applyFilters();
     }));
     $('side').querySelectorAll('tr[data-tranche]').forEach(tr => tr.addEventListener('click', () => {
@@ -558,6 +602,7 @@
       (!f.field || r.diffs.some(d => d.a === f.field)) &&
       (f.tranche === null || trancheOf(r) === f.tranche) &&
       (f.group === null || groupOf(r) === f.group) &&
+      (f.flux === null || (r.flux && r.flux[f.flux] > 0)) &&
       (!q || searchText(r).includes(q)));
 
     if (state.sort.col) {
@@ -580,6 +625,7 @@
     if (f.field) badges.push('écart sur « ' + f.field + ' »');
     if (f.tranche !== null) badges.push('taux ' + TRANCHES[f.tranche]);
     if (f.group !== null) badges.push($('group-by').value + ' = ' + f.group);
+    if (f.flux !== null) badges.push('levé en ' + f.flux);
     $('filter-badge').classList.toggle('hidden', !badges.length);
     $('filter-badge').textContent = badges.join(' + ') + ' ✕';
 
@@ -588,7 +634,7 @@
   }
 
   $('filter-badge').addEventListener('click', () => {
-    state.filter = Object.assign(state.filter, { tag: null, field: null, tranche: null, group: null });
+    state.filter = Object.assign(state.filter, { tag: null, field: null, tranche: null, group: null, flux: null });
     state.page = 0;
     renderKPIs(); renderSide(); renderSynth(); applyFilters();
   });
@@ -616,6 +662,9 @@
     return v === undefined || v === null || v === '' ? r.key : String(v);
   }
 
+  // Flux non analysés présents dans les levées (une colonne chacun dans le tableau).
+  const autresFlux = () => state.opts.fluxCol ? state.result.stats.levees.flux.filter(f => !f.retenu).map(f => f.flux).slice(0, 10) : [];
+
   function columns() {
     const o = state.opts;
     const cols = [
@@ -623,18 +672,21 @@
       { id: 'cle', title: 'Identifiant', html: r => esc(keyOf(r)), sort: keyOf }
     ];
     if (lev()) {
-      o.display.forEach(d => cols.push({ id: 'a:' + d, title: d, html: r => esc(aVal(r, d)), sort: r => aVal(r, d) }));
+      // Colonnes de la base client masquées si la vue ne contient que des puces absentes de cette base.
+      const showA = !state.filtered.length || state.filtered.some(r => r.a);
+      if (showA) o.display.forEach(d => cols.push({ id: 'a:' + d, title: d, html: r => esc(aVal(r, d)), sort: r => aVal(r, d) }));
       const ag = r => r.b ? r.b.agg : null;
       cols.push(
-        { id: 'n', title: 'Levées', cls: 'n', html: r => ag(r) ? fmt(ag(r).n) : (r.a ? '0' : ''), sort: r => ag(r) ? ag(r).n : 0 },
+        { id: 'n', title: fluxLabel() ? 'Levées ' + fluxLabel() : 'Levées', cls: 'n', html: r => ag(r) ? fmt(ag(r).n) : (r.a ? '0' : ''), sort: r => ag(r) ? ag(r).n : 0 },
+        ...autresFlux().map(f => ({ id: 'flux:' + f, title: 'Levées ' + f, cls: 'n', html: r => r.flux && r.flux[f] ? fmt(r.flux[f]) : '', sort: r => r.flux && r.flux[f] ? r.flux[f] : null })),
         { id: 'sem', title: 'Semaines levées', cls: 'n', html: r => r.a ? `${ag(r) ? ag(r).semaines : 0} / ${fmt(r.lv.semainesPossibles)}` : (ag(r) ? ag(r).semaines : ''), sort: r => ag(r) ? ag(r).semaines : 0 },
         { id: 'taux', title: 'Taux présentation', cls: 'n', html: r => r.lv.taux === null ? '' : fmt(r.lv.taux) + ' %', sort: r => r.lv.taux },
         { id: 'last', title: 'Dernière levée', html: r => ag(r) ? Levees.formatDay(ag(r).last) : '', sort: r => ag(r) ? ag(r).last : null },
         { id: 'first', title: 'Première levée', html: r => ag(r) ? Levees.formatDay(ag(r).first) : '', sort: r => ag(r) ? ag(r).first : null }
       );
       if (o.weightCol) cols.push({ id: 'poids', title: 'Poids moyen (kg)', cls: 'n', html: r => ag(r) ? fmt(ag(r).poidsMoyen) : '', sort: r => ag(r) ? ag(r).poidsMoyen : null });
-      if (o.dateA) cols.push({ id: 'liv', title: 'Livraison', html: r => esc(aVal(r, o.dateA)), sort: r => r.lv.livraison });
-      if (o.countA) cols.push(
+      if (o.dateA && showA) cols.push({ id: 'liv', title: 'Livraison', html: r => esc(aVal(r, o.dateA)), sort: r => r.lv.livraison });
+      if (o.countA && showA) cols.push(
         { id: 'decl', title: 'Déclaré (A)', cls: 'n', html: r => fmt(r.lv.declare), sort: r => r.lv.declare },
         { id: 'ecart', title: 'Écart levées − déclaré', cls: 'n', html: r => r.lv.ecart === null ? '' : (r.lv.ecart > 0 ? '+' : '') + fmt(r.lv.ecart), sort: r => r.lv.ecart === null ? null : Math.abs(r.lv.ecart) }
       );
@@ -758,7 +810,8 @@
       if (r.a) {
         lines.push(['Levées', ag ? fmt(ag.n) : '0']);
         lines.push(['Taux de présentation', r.lv.taux === null ? '—' : `${fmt(r.lv.taux)} % (${ag ? ag.semaines : 0} sem. / ${fmt(r.lv.semainesPossibles)})`]);
-      } else lines.push(['Levées (puce absente de ' + label('A') + ')', fmt(ag.n)]);
+      } else lines.push([`Levées${fluxLabel() ? ' ' + fluxLabel() : ''} (puce absente de ${label('A')})`, fmt(ag.n)]);
+      if (r.flux) lines.push(['Levées par flux', Object.entries(r.flux).sort((x, y) => y[1] - x[1]).map(([f, n]) => f + ' : ' + n).join(' · ')]);
       if (ag) lines.push(['Première / dernière levée', Levees.formatDay(ag.first) + ' → ' + Levees.formatDay(ag.last)]);
       if (ag && ag.poidsMoyen !== null) lines.push(['Poids moyen', fmt(ag.poidsMoyen) + ' kg']);
       if (r.lv.declare !== null) lines.push(['Déclaré dans ' + label('A'), fmt(r.lv.declare)]);
@@ -800,6 +853,7 @@
         o.display.forEach(d => { props[d] = r.a ? r.a.props[d] : ''; });
         Object.assign(props, {
           nb_levees: ag ? ag.n : 0,
+          ...Object.fromEntries((o.fluxCol ? state.result.stats.levees.flux.map(f => f.flux) : []).map(f => ['levees_' + f, r.flux && r.flux[f] ? r.flux[f] : 0])),
           jours_avec_levee: ag ? ag.jours : 0,
           semaines_avec_levee: ag ? ag.semaines : 0,
           semaines_en_service: r.a ? r.lv.semainesPossibles : '',

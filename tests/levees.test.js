@@ -78,12 +78,40 @@ test('analyse : catégories et taux de présentation', () => {
 
 test('démo levées : ordres de grandeur réalistes', () => {
   const d = Demo.generateLevees(600, 7);
-  const agg = createAggregator({ keyCol: 'Code puce', dateCol: 'Date levée', weightCol: 'Poids (kg)', ignoreLeadingZeros: true });
+  const fluxKeep = new Set(['FFOM']);
+  const agg = createAggregator({ keyCol: 'Code puce', dateCol: 'Date levée', weightCol: 'Poids (kg)', fluxCol: 'Flux', fluxKeep, ignoreLeadingZeros: true });
   d.levees.forEach(agg.add);
   const bacs = d.clients.map((p, i) => rec(i, p, p.Latitude, p.Longitude));
-  const res = analyser(bacs, agg.result(), { keyA: 'Code puce', moveThreshold: 50, seuilTaux: 25, seuilArret: 8, dateA: 'Date livraison', ignoreLeadingZeros: true });
+  const res = analyser(bacs, agg.result(), { keyA: 'Code puce', moveThreshold: 50, seuilTaux: 25, seuilArret: 8, dateA: 'Date livraison', fluxKeep, ignoreLeadingZeros: true });
   const t = res.stats.byTag;
-  for (const k of ['identique', 'faible', 'arret', 'seulA', 'recent', 'seulB']) assert.ok(t[k] > 0, k + ' attendu > 0');
+  for (const k of ['identique', 'faible', 'arret', 'seulA', 'recent', 'seulB', 'autre_flux']) assert.ok(t[k] > 0, k + ' attendu > 0');
+  // Les 250 puces OMR / CS hors base client ne sont pas des « FFOM non référencées ».
+  assert.deepStrictEqual(res.stats.levees.flux.map(f => f.flux).sort(), ['CS', 'FFOM', 'OMR']);
   assert.strictEqual(t.seulB, 50);
   assert.ok(res.stats.tauxMedian > 30 && res.stats.tauxMedian < 90, 'taux médian ' + res.stats.tauxMedian);
+});
+
+test('flux : seules les levées du flux retenu comptent, la répartition reste visible', () => {
+  const L = [
+    { d: '06/01/2025', p: 'A1', f: 'FFOM' }, { d: '13/01/2025', p: 'A1', f: 'FFOM' }, { d: '14/01/2025', p: 'A1', f: 'OMR' },
+    { d: '07/01/2025', p: 'A2', f: 'OMR' },                                       // bac client jamais levé en FFOM
+    { d: '08/01/2025', p: 'X9', f: 'FFOM' }, { d: '15/01/2025', p: 'X9', f: 'FFOM' }, // FFOM non référencée
+    { d: '09/01/2025', p: 'OM1', f: 'OMR' }                                         // autre bac OMR : ignoré
+  ];
+  const fluxKeep = new Set(['FFOM']);
+  const agg = createAggregator({ keyCol: 'p', dateCol: 'd', fluxCol: 'f', fluxKeep });
+  L.forEach(agg.add);
+  const ag = agg.result();
+  assert.strictEqual(ag.stats.levees, 4);
+  assert.strictEqual(ag.stats.autresFlux, 3);
+  const res = analyser([rec(0, { p: 'A1' }), rec(1, { p: 'A2' })], ag, { keyA: 'p', moveThreshold: 50, seuilTaux: 0, seuilArret: 1, fluxKeep });
+  const a1 = res.rows.find(r => r.a && r.a.props.p === 'A1');
+  const a2 = res.rows.find(r => r.a && r.a.props.p === 'A2');
+  assert.deepStrictEqual(a1.flux, { FFOM: 2, OMR: 1 });
+  assert.strictEqual(a1.b.agg.n, 2);
+  assert.ok(a1.tags.includes('autre_flux') && !a1.tags.includes('identique'));
+  assert.deepStrictEqual(a2.tags.sort(), ['autre_flux', 'seulA']);
+  const seulB = res.rows.filter(r => r.category === 'seulB');
+  assert.deepStrictEqual(seulB.map(r => r.b.props.identifiant), ['X9']);
+  assert.strictEqual(seulB[0].b.agg.n, 2);
 });

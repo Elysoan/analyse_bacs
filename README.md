@@ -25,8 +25,15 @@ Les levées sont agrégées par bac (identifiant puce ou n° de bac), puis rappr
 | Sans levée depuis ≥ N semaines | bac levé dans l'année mais plus depuis 8 semaines (retiré ? vacant ?) |
 | Jamais levés | présent dans la base client, aucune levée sur la période |
 | Livrés récemment | jamais levé mais livré moins de N semaines avant la fin de la période (non compté comme anomalie) |
-| Puces levées non référencées | levées sur un identifiant absent de la base client, avec le nombre de levées concernées |
+| Puces levées non référencées | levées (sur le flux analysé) d'un identifiant absent de la base client, avec le nombre de levées et la position |
+| Levés aussi sur un autre flux | bac de la base client levé au moins une fois sur un flux non analysé (ex. OMR) |
 | Écart de position | distance bac (base client) ↔ position médiane de ses levées > seuil (50 m), si les deux ont des coordonnées |
+
+**Flux** : si l'export des levées contient une colonne flux (FFOM, OMR, CS…), on choisit le ou les flux analysés (FFOM coché par défaut). Les indicateurs ne portent que sur ces flux, et :
+- *Puces FFOM levées, absentes de la base client* : liste géolocalisée (position médiane des levées) avec le nombre de levées, exportable en GeoJSON pour ArcGIS Pro ;
+- *Bacs du client levés aussi hors FFOM* : bacs vidés au moins une fois sur un autre flux (erreur de tournée, puce mal affectée) ;
+- tableau des levées par flux, et une colonne « Levées <flux> » par flux pour chaque puce ;
+- les puces levées uniquement sur un autre flux et absentes de la base client (bacs OMR, CS…) sont ignorées.
 
 Également : levées par mois (repère les mois manquants dans l'export), répartition des taux, contrôle du « nombre d'apparitions » déclaré dans la base client, **synthèse par activité / secteur / commune**.
 

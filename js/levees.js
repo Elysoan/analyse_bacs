@@ -10,7 +10,7 @@
   'use strict';
 
   const JOUR_MS = 86400000;
-  const PRIORITE = ['recent', 'seulA', 'seulB', 'arret', 'faible', 'deplace', 'identique'];
+  const PRIORITE = ['recent', 'seulA', 'seulB', 'arret', 'faible', 'autre_flux', 'deplace', 'identique'];
 
   // --- Dates : renvoie un numéro de jour (jours depuis 1970-01-01), ou null ---
   function parseDate(v) {
@@ -65,13 +65,17 @@
   /**
    * Agrège les levées ligne à ligne (adapté aux fichiers d'un million de lignes).
    * @param {Object} o keyCol, dateCol, weightCol?, xCol?, yCol?,
-   *                   project?(x, y) -> [lon, lat] | null, ignoreLeadingZeros?
+   *                   project?(x, y) -> [lon, lat] | null, ignoreLeadingZeros?,
+   *                   fluxCol? (colonne flux), fluxKeep? (Set des flux analysés, ex. FFOM)
+   * Les indicateurs (taux, dates, position...) ne portent que sur les flux retenus ;
+   * le nombre de levées par flux est conservé pour toutes les puces.
    * @returns {{ add(row), result() }}
    */
   function createAggregator(o) {
     const bacs = new Map();
     const parMois = new Map();
-    const st = { lignes: 0, sansCle: 0, dateInvalide: 0, minDay: Infinity, maxDay: -Infinity, levees: 0 };
+    const parFlux = new Map(); // flux -> { levees, puces: Set }
+    const st = { lignes: 0, sansCle: 0, dateInvalide: 0, minDay: Infinity, maxDay: -Infinity, levees: 0, autresFlux: 0 };
     const keyOpts = { ignoreLeadingZeros: o.ignoreLeadingZeros };
 
     function add(row) {
@@ -80,17 +84,29 @@
       if (day === null) { st.dateInvalide++; return; }
       const key = Compare.normalizeKey(row[o.keyCol], keyOpts);
       if (!key) { st.sansCle++; return; }
+
+      let b = bacs.get(key);
+      if (!b) {
+        b = { brut: String(row[o.keyCol]).trim(), n: 0, flux: {}, jours: new Set(), semaines: new Set(), first: Infinity, last: -Infinity, poids: 0, nPoids: 0, lats: [], lons: [] };
+        bacs.set(key, b);
+      }
+      if (o.fluxCol) {
+        const v = row[o.fluxCol];
+        const flux = v === undefined || v === null || String(v).trim() === '' ? '(vide)' : String(v).trim();
+        b.flux[flux] = (b.flux[flux] || 0) + 1;
+        let g = parFlux.get(flux);
+        if (!g) parFlux.set(flux, (g = { levees: 0, puces: new Set() }));
+        g.levees++;
+        g.puces.add(key);
+        if (o.fluxKeep && !o.fluxKeep.has(flux)) { st.autresFlux++; return; }
+      }
+
       st.levees++;
       if (day < st.minDay) st.minDay = day;
       if (day > st.maxDay) st.maxDay = day;
       const mois = moisDe(day);
       parMois.set(mois, (parMois.get(mois) || 0) + 1);
 
-      let b = bacs.get(key);
-      if (!b) {
-        b = { brut: String(row[o.keyCol]).trim(), n: 0, jours: new Set(), semaines: new Set(), first: day, last: day, poids: 0, nPoids: 0, lats: [], lons: [] };
-        bacs.set(key, b);
-      }
       b.n++;
       b.jours.add(day);
       b.semaines.add(lundi(day));
@@ -112,8 +128,11 @@
     function result() {
       const vide = st.levees === 0;
       const records = [];
+      const fluxParCle = new Map();
       let idx = 0;
-      for (const b of bacs.values()) {
+      for (const [key, b] of bacs) {
+        if (o.fluxCol) fluxParCle.set(key, b.flux);
+        if (!b.n) continue; // levée uniquement sur d'autres flux : pas une puce du flux analysé
         records.push({
           idx: idx++,
           props: { identifiant: b.brut },
@@ -124,13 +143,18 @@
           lat: median(b.lats), lon: median(b.lons)
         });
       }
+      const flux = Array.from(parFlux.entries())
+        .map(([f, g]) => ({ flux: f, levees: g.levees, puces: g.puces.size, retenu: !o.fluxKeep || o.fluxKeep.has(f) }))
+        .sort((a, b) => b.levees - a.levees);
       return {
         records,
+        fluxParCle,
         stats: {
-          lignes: st.lignes, levees: st.levees, sansCle: st.sansCle, dateInvalide: st.dateInvalide,
+          lignes: st.lignes, levees: st.levees, sansCle: st.sansCle, dateInvalide: st.dateInvalide, autresFlux: st.autresFlux,
           debut: vide ? null : st.minDay, fin: vide ? null : st.maxDay,
           semainesPeriode: vide ? 0 : (lundi(st.maxDay) - lundi(st.minDay)) / 7 + 1,
-          parMois: Array.from(parMois.entries()).sort((a, b) => a[0] < b[0] ? -1 : 1)
+          parMois: Array.from(parMois.entries()).sort((a, b) => a[0] < b[0] ? -1 : 1),
+          flux
         }
       };
     }
@@ -145,7 +169,8 @@
    * @param {Object} agg résultat de createAggregator().result()
    * @param {Object} o keyA, moveThreshold (m), seuilTaux (%), seuilArret (semaines),
    *                   dateA? (colonne date de livraison), countA? (colonne nb de levées déclaré),
-   *                   ignoreLeadingZeros?
+   *                   fluxKeep? (Set des flux analysés), ignoreLeadingZeros?
+   * Chaque ligne reçoit aussi r.flux = { flux: nb de levées } (toutes levées confondues).
    */
   function analyser(bacs, agg, o) {
     const res = Compare.compare(bacs, agg.records, {
@@ -173,11 +198,18 @@
       else if (r.a) lv.taux = 0;
       r.lv = lv;
 
+      const keyOpts = { ignoreLeadingZeros: o.ignoreLeadingZeros };
+      const cle = r.a ? Compare.normalizeKey(r.a.props[o.keyA], keyOpts) : Compare.normalizeKey(r.b.props.identifiant, keyOpts);
+      r.flux = agg.fluxParCle ? agg.fluxParCle.get(cle) || null : null;
+      // Bac du client levé (aussi) sur un flux non analysé, ex. bac biodéchets vidé par la tournée OMR.
+      const autreFlux = r.a && r.flux && o.fluxKeep && Object.keys(r.flux).some(f => !o.fluxKeep.has(f));
+
       const tags = r.tags.filter(t => t !== 'identique');
+      if (autreFlux) tags.push('autre_flux');
       if (r.a && levees) {
         if (fin - levees.last >= o.seuilArret * 7) tags.push('arret');
         if (lv.taux !== null && lv.taux < o.seuilTaux) tags.push('faible');
-        if (!tags.some(t => t === 'arret' || t === 'faible' || t === 'deplace')) tags.push('identique');
+        if (!tags.some(t => t === 'arret' || t === 'faible' || t === 'deplace' || t === 'autre_flux')) tags.push('identique');
       } else if (r.a && lv.semainesPossibles < o.seuilArret) {
         // Livré trop récemment pour juger : ne compte pas comme « jamais levé ».
         tags.splice(tags.indexOf('seulA'), 1, 'recent');
