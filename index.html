@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analyse bacs</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Analyse bacs <span>· comparateur de bases</span></h1>
+  <div class="topbar-actions">
+    <button id="btn-demo" class="btn ghost">Charger l'exemple</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Panneau de configuration -->
+  <aside class="sidebar">
+    <section class="card">
+      <h2><span class="dot dot-a"></span>Base A</h2>
+      <input id="label-a" class="label-input" value="Base SIG" aria-label="Nom de la base A">
+      <label class="file"><input type="file" id="file-a" accept=".csv,.txt,.xlsx,.xls,.ods,.geojson,.json"><span>Choisir un fichier…</span></label>
+      <div id="sheet-a" class="field hidden"><label>Feuille</label><select></select></div>
+      <p id="info-a" class="muted"></p>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot dot-b"></span>Base B</h2>
+      <input id="label-b" class="label-input" value="Base métier" aria-label="Nom de la base B">
+      <label class="file"><input type="file" id="file-b" accept=".csv,.txt,.xlsx,.xls,.ods,.geojson,.json"><span>Choisir un fichier…</span></label>
+      <div id="sheet-b" class="field hidden"><label>Feuille</label><select></select></div>
+      <p id="info-b" class="muted"></p>
+    </section>
+
+    <section id="config" class="card hidden">
+      <h2>Rapprochement</h2>
+      <div class="seg" role="radiogroup">
+        <label><input type="radio" name="mode" value="key" checked><span>Par identifiant</span></label>
+        <label><input type="radio" name="mode" value="spatial"><span>Par proximité</span></label>
+      </div>
+
+      <div class="grid2">
+        <div class="field"><label>Identifiant A</label><select id="key-a"></select></div>
+        <div class="field"><label>Identifiant B</label><select id="key-b"></select></div>
+      </div>
+      <div class="field opt-key"><label>Seuil « déplacé » (m)</label><input type="number" id="move-threshold" value="20" min="0" step="1"></div>
+      <div class="field opt-spatial hidden"><label>Rayon de recherche (m)</label><input type="number" id="match-radius" value="15" min="1" step="1"></div>
+
+      <h3>Coordonnées</h3>
+      <div class="grid3">
+        <div class="field"><label>X A</label><select id="x-a"></select></div>
+        <div class="field"><label>Y A</label><select id="y-a"></select></div>
+        <div class="field"><label>Système A</label><select id="crs-a"></select></div>
+        <div class="field"><label>X B</label><select id="x-b"></select></div>
+        <div class="field"><label>Y B</label><select id="y-b"></select></div>
+        <div class="field"><label>Système B</label><select id="crs-b"></select></div>
+      </div>
+
+      <h3>Champs à comparer</h3>
+      <div id="fields" class="fields"></div>
+
+      <details class="opts">
+        <summary>Options de normalisation</summary>
+        <label class="check"><input type="checkbox" id="opt-case" checked> Ignorer la casse</label>
+        <label class="check"><input type="checkbox" id="opt-accents"> Ignorer les accents</label>
+        <label class="check"><input type="checkbox" id="opt-zeros"> Ignorer les zéros en tête des identifiants</label>
+      </details>
+
+      <button id="btn-compare" class="btn primary block">Comparer</button>
+      <p id="error" class="error hidden"></p>
+    </section>
+  </aside>
+
+  <!-- Résultats -->
+  <main class="main">
+    <div id="empty" class="empty">
+      <h2>Comparer deux inventaires de bacs</h2>
+      <ol>
+        <li>Chargez deux fichiers (CSV, Excel ou GeoJSON).</li>
+        <li>Choisissez la façon de rapprocher les bacs : identifiant commun ou proximité géographique.</li>
+        <li>Cochez les champs à comparer, puis lancez la comparaison.</li>
+      </ol>
+      <p class="muted">Les fichiers sont traités dans votre navigateur : aucune donnée n'est envoyée sur un serveur.</p>
+    </div>
+
+    <div id="results" class="hidden">
+      <div id="kpis" class="kpis"></div>
+
+      <div class="panes">
+        <div class="map-wrap"><div id="map"></div></div>
+        <div class="card by-field">
+          <h3>Écarts par champ</h3>
+          <table id="field-stats" class="mini"></table>
+          <p id="dist-info" class="muted"></p>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-tools">
+          <input id="search" type="search" placeholder="Rechercher (identifiant, adresse…)">
+          <span id="filter-badge" class="badge hidden"></span>
+          <span class="spacer"></span>
+          <button id="btn-export-csv" class="btn">Export CSV</button>
+          <button id="btn-export-geojson" class="btn">Export GeoJSON</button>
+        </div>
+        <div class="table-scroll"><table id="table"></table></div>
+        <div class="pager">
+          <button id="prev" class="btn ghost">‹</button>
+          <span id="page-info"></span>
+          <button id="next" class="btn ghost">›</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/papaparse.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/proj4.js"></script>
+<script src="js/compare.js"></script>
+<script src="js/io.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
