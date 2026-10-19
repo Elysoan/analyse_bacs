@@ -30,6 +30,9 @@
     .secs { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
     .secs .row { display: flex; gap: 10px; align-items: center; }
     .drawing #map { cursor: crosshair; }
+    .plus { width: 16px; height: 16px; line-height: 14px; text-align: center; font: 700 14px/14px system-ui, sans-serif; color: #5f6672; background: #fff; border: 1.5px solid #8a919c; border-radius: 50%; cursor: pointer; }
+    .plus:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
+    .plus.rem { border-color: #e34948; color: #e34948; }
     @media (max-width: 800px) { .drops { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -114,11 +117,11 @@
       <button id="btn-cancel" class="btn small hidden">Annuler</button>
     </div>
     <div id="map"></div>
-    <p id="map-help" class="muted" style="margin:0;padding:8px 14px;font-size:12px">Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues. Cliquez un secteur pour déplacer ses sommets (clic droit sur un sommet pour le retirer).</p>
+    <p id="map-help" class="muted" style="margin:0;padding:8px 14px;font-size:12px">Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues (clic pour retirer). « + » : adresses non retenues (clic pour ajouter).</p>
     <div id="secs" class="secs"></div>
     <div class="card-tools" style="border-top:1px solid var(--border);border-bottom:0">
-      <button id="btn-save-sec" class="btn small">⭳ Enregistrer les secteurs (GeoJSON)</button>
-      <label class="btn small" style="cursor:pointer">📄 Charger des secteurs<input type="file" id="file-sec" accept=".geojson,.json" hidden></label>
+      <button id="btn-save-sec" class="btn small">⭳ Enregistrer secteurs et ajustements (GeoJSON)</button>
+      <label class="btn small" style="cursor:pointer">📄 Charger secteurs et ajustements<input type="file" id="file-sec" accept=".geojson,.json" hidden></label>
     </div>
   </section>
 </main>

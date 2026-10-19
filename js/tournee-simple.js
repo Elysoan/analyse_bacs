@@ -135,6 +135,7 @@
       res.width = width; res.perAddress = perAddress; res.hasUnits = !!(units && units.length);
       state.result = res;
       state.sectors = [];
+      Object.keys(manual).forEach(k => delete manual[k]);
       $('width-r').value = width; $('width-v').textContent = width + ' m';
       mapShow();
       recalc();
@@ -199,6 +200,7 @@
     tLayer = L.featureGroup().addTo(map); aLayer = L.featureGroup().addTo(map);
     sLayer = L.featureGroup().addTo(map); vLayer = L.featureGroup().addTo(map);
     map.on('click', e => { if (drawing) { drawing.pts.push([e.latlng.lng, e.latlng.lat]); drawTmp(); } else if (selected) { selected = null; drawSectors(); } });
+    map.on('moveend', () => { if (state.result) drawAddresses(); });
     map.setView([46.6, 2.4], 6);
   }
 
@@ -223,22 +225,45 @@
     }));
   }
 
+  // Ajustements manuels, par tournée : adresses ajoutées « + » ou retirées d'un clic.
+  const manual = {};
+  const man = code => manual[code] || (manual[code] = { add: new Set(), rem: new Set() });
+  const PLUS_MIN_ZOOM = 15, PLUS_MAX = 1500;
+
+  function toggleAddress(k) {
+    const code = state.tournees[state.active].code, m = man(code);
+    if (state.result.served[state.active].taken.has(k)) { if (!m.add.delete(k)) m.rem.add(k); }
+    else if (!m.rem.delete(k)) m.add.add(k);
+    recalc();
+  }
+
   function drawAddresses() {
     aLayer.clearLayers();
-    const r = state.result, tn = state.tournees[state.active], s = r.served[state.active];
+    const r = state.result, tn = state.tournees[state.active], s = r.served[state.active], m = man(tn.code);
     const box = tn.troncons.reduce((b, t) => t.work.length ? [Math.min(b[0], t.bbox[0]), Math.min(b[1], t.bbox[1]), Math.max(b[2], t.bbox[2]), Math.max(b[3], t.bbox[3])] : b, [Infinity, Infinity, -Infinity, -Infinity]);
-    const m = r.width + 150;
-    let others = 0;
+    const mg = r.width + 150;
+    const zoomed = map.getZoom() >= PLUS_MIN_ZOOM, view = map.getBounds().pad(0.05);
+    let plus = 0, dots = 0;
     r.pts.forEach((p, k) => {
-      if (p.x < box[0] - m || p.x > box[2] + m || p.y < box[1] - m || p.y > box[3] + m) return;
+      if (p.x < box[0] - mg || p.x > box[2] + mg || p.y < box[1] - mg || p.y > box[3] + mg) return;
       const origin = s.taken.get(k);
-      if (!origin && ++others > 5000) return;
-      const ll = toLL([p.x, p.y]);
-      L.circleMarker([ll[1], ll[0]], origin
-        ? { radius: 4, weight: 1, color: '#16191d', fillColor: origin === 'secteur' ? '#d55181' : '#eda100', fillOpacity: .95, interactive: false }
-        : { radius: 2, weight: 0, fillColor: '#8a919c', fillOpacity: .6, interactive: false }).addTo(aLayer);
+      const ll = toLL([p.x, p.y]), at = [ll[1], ll[0]];
+      const tip = `${fmt1(r.weights.pop[k])} hab.${r.communes[k] ? ' · ' + esc(r.communes[k]) : ''}`;
+      if (origin) {
+        const manuel = origin === 'manuel';
+        L.circleMarker(at, { radius: manuel ? 5 : 4, weight: manuel ? 2 : 1, color: manuel ? '#2a78d6' : '#16191d', fillColor: origin === 'secteur' ? '#d55181' : '#eda100', fillOpacity: .95, interactive: !drawing && zoomed })
+          .bindTooltip(`${tip}<br><i>${zoomed ? 'Cliquer pour retirer' : ''}</i>`).on('click', () => toggleAddress(k)).addTo(aLayer);
+      } else if (zoomed && view.contains(at) && plus < PLUS_MAX) {
+        plus++;
+        L.marker(at, { icon: L.divIcon({ className: 'plus' + (m.rem.has(k) ? ' rem' : ''), html: '+', iconSize: [16, 16] }), interactive: !drawing, keyboard: false })
+          .bindTooltip(`${tip}<br><i>${m.rem.has(k) ? 'Retirée : cliquer pour la remettre' : 'Cliquer pour ajouter'}</i>`).on('click', () => toggleAddress(k)).addTo(aLayer);
+      } else if (!zoomed && ++dots <= 5000) {
+        L.circleMarker(at, { radius: 2, weight: 0, fillColor: '#8a919c', fillOpacity: .6, interactive: false }).addTo(aLayer);
+      }
     });
+    $('map-help').textContent = drawing ? 'Cliquez sur la carte pour placer les sommets du polygone (3 au minimum), puis « Terminer ».' : HELP + (zoomed ? '' : ' Zoomez pour afficher les « + » et ajouter une adresse d\'un clic.');
   }
+  const HELP = 'Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues (clic pour retirer). « + » : adresses non retenues (clic pour ajouter). Cliquez un secteur pour déplacer ses sommets (clic droit sur un sommet pour le retirer).';
 
   const latlngs = ring => ring.map(q => [q[1], q[0]]);
 
@@ -273,7 +298,7 @@
     ['btn-add', 'btn-excl'].forEach(id => $(id).classList.add('hidden'));
     ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.remove('hidden'));
     map.doubleClickZoom.disable();
-    $('map-help').textContent = 'Cliquez sur la carte pour placer les sommets du polygone (3 au minimum), puis « Terminer ».';
+    drawAddresses();
   }
   function drawTmp() {
     if (tmp) map.removeLayer(tmp);
@@ -290,7 +315,6 @@
     ['btn-add', 'btn-excl'].forEach(id => $(id).classList.remove('hidden'));
     ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.add('hidden'));
     map.doubleClickZoom.enable();
-    $('map-help').textContent = 'Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues. Cliquez un secteur pour déplacer ses sommets (clic droit sur un sommet pour le retirer).';
     drawSectors(); recalc();
   }
   $('btn-add').addEventListener('click', () => startDraw('add'));
@@ -306,7 +330,12 @@
   function recalc() {
     const r = state.result;
     if (!r) return;
-    r.served = state.tournees.map(t => Tournees.serve(t, r.pts, r.index, r.width, polysFor(t.code, 'add'), polysFor(t.code, 'excl')));
+    r.served = state.tournees.map(t => {
+      const sv = Tournees.serve(t, r.pts, r.index, r.width, polysFor(t.code, 'add'), polysFor(t.code, 'excl')), m = man(t.code);
+      m.rem.forEach(k => sv.taken.delete(k));
+      m.add.forEach(k => { if (!sv.taken.has(k)) sv.taken.set(k, 'manuel'); });
+      return sv;
+    });
     r.rows = state.tournees.map((t, i) => Tournees.summarize(t, r.served[i], r.weights, r.communes));
     render(); drawSectors(); drawAddresses();
   }
@@ -321,8 +350,11 @@
 
   // Enregistrement / chargement des secteurs (GeoJSON, lisible dans ArcGIS Pro)
   $('btn-save-sec').addEventListener('click', () => {
-    if (!state.sectors.length) return toast('Aucun secteur à enregistrer.', true);
-    const features = state.sectors.map(s => ({ type: 'Feature', properties: { type: s.kind === 'add' ? 'ajout' : 'exclusion', tournee: s.code }, geometry: { type: 'Polygon', coordinates: [s.ring.concat([s.ring[0]])] } }));
+    const pointsOf = (set, type) => Array.from(set).map(k => ({ code: null, k, type }));
+    const pts = [];
+    state.tournees.forEach(t => { const m = man(t.code); m.add.forEach(k => pts.push([t.code, k, 'ajout_adresse'])); m.rem.forEach(k => pts.push([t.code, k, 'retrait_adresse'])); });
+    if (!state.sectors.length && !pts.length) return toast('Aucun secteur ni ajustement à enregistrer.', true);
+    const features = pts.map(([code, k, type]) => { const ll = toLL([state.result.pts[k].x, state.result.pts[k].y]); return { type: 'Feature', properties: { type, tournee: code }, geometry: { type: 'Point', coordinates: ll } }; }).concat(state.sectors.map(s => ({ type: 'Feature', properties: { type: s.kind === 'add' ? 'ajout' : 'exclusion', tournee: s.code }, geometry: { type: 'Polygon', coordinates: [s.ring.concat([s.ring[0]])] } })));
     IO.download(`secteurs_${stamp()}.geojson`, JSON.stringify({ type: 'FeatureCollection', features }), 'application/geo+json');
   });
   $('file-sec').addEventListener('change', async e => {
@@ -335,14 +367,23 @@
       const codes = state.tournees.map(t => t.code);
       let n = 0;
       feats.forEach(f => {
+        if (f.geometry && f.geometry.type === 'Point') {
+          // Ajustement d'adresse : retrouvée par sa position (à 2 m près)
+          const p = f.properties || {}, w = toWork(f.geometry.coordinates), r0 = state.result;
+          let best = -1, bd = 4;
+          Tournees.candidates(r0.index, [w[0] - 2, w[1] - 2, w[0] + 2, w[1] + 2]).forEach(k => { const d = Math.hypot(r0.pts[k].x - w[0], r0.pts[k].y - w[1]); if (d < bd) { bd = d; best = k; } });
+          const code = codes.includes(String(p.tournee)) ? String(p.tournee) : codes[state.active];
+          if (best >= 0 && /ajout_adresse|retrait_adresse/.test(p.type || '')) { man(code)[/ajout/.test(p.type) ? 'add' : 'rem'].add(best); n++; }
+          return;
+        }
         if (!f.geometry || f.geometry.type !== 'Polygon') return;
         const p = f.properties || {};
         const ring = f.geometry.coordinates[0].slice(0, -1);
         state.sectors.push({ id: ++seq, kind: /excl/i.test(p.type || p.kind || '') ? 'excl' : 'add', code: codes.includes(String(p.tournee)) ? String(p.tournee) : codes[state.active], ring });
         n++;
       });
-      if (!n) throw new Error('aucun polygone');
-      toast(`${n} secteur(s) chargé(s).`);
+      if (!n) throw new Error('aucun polygone ni adresse reconnue');
+      toast(`${n} élément(s) chargé(s).`);
       drawSectors(); recalc();
     } catch (err) { toast(`Secteurs illisibles : ${err.message}`, true); }
   });
