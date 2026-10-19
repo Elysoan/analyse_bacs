@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Habitants d'une tournée</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/style.css">
   <style>
     .page { max-width: 1040px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
@@ -19,6 +20,13 @@
     .opts { display: flex; gap: 18px; align-items: end; flex-wrap: wrap; }
     .opts .field { margin: 0; width: 170px; }
     .exports { display: flex; gap: 8px; flex-wrap: wrap; }
+    #map { height: 520px; }
+    .vtx { width: 12px; height: 12px; background: #fff; border: 2px solid #d55181; border-radius: 3px; }
+    .maptools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .maptools input[type=range] { width: 110px; padding: 0; }
+    .secs { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+    .secs .row { display: flex; gap: 10px; align-items: center; }
+    .drawing #map { cursor: crosshair; }
     @media (max-width: 800px) { .drops { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -66,7 +74,7 @@
     <details class="advanced">
       <summary>Réglages</summary>
       <div class="opts">
-        <div class="field"><label>Largeur de collecte (m)</label><input type="number" id="width" value="30" min="5" max="500" step="5"></div>
+        <div class="field"><label>Largeur de collecte (m)</label><input type="number" id="width" value="30" min="5" max="150" step="5"></div>
         <div class="field"><label>Habitants / adresse (sans carreaux)</label><input type="number" id="per-addr" value="2.2" min="0.5" max="10" step="0.1"></div>
       </div>
     </details>
@@ -85,9 +93,30 @@
     <div class="table-scroll"><table id="table" class="grid"></table></div>
     <p id="notes" class="muted" style="padding:10px 14px;margin:0;font-size:12px"></p>
   </section>
+
+  <section id="map-card" class="card hidden">
+    <div class="card-tools">
+      <span class="card-title">Carte et sectorisation</span>
+      <select id="active" title="Tournée active"></select>
+      <span class="maptools">Largeur <input type="range" id="width-r" min="5" max="150" step="5" value="30"><b id="width-v">30 m</b></span>
+      <span class="spacer"></span>
+      <button id="btn-add" class="btn small" title="Dessiner un polygone : ses adresses s'ajoutent à la tournée">＋ Ajouter un secteur</button>
+      <button id="btn-excl" class="btn small" title="Dessiner un polygone : ses adresses sont retirées">✂ Exclure une zone</button>
+      <button id="btn-finish" class="btn primary small hidden">Terminer</button>
+      <button id="btn-cancel" class="btn small hidden">Annuler</button>
+    </div>
+    <div id="map"></div>
+    <p id="map-help" class="muted" style="margin:0;padding:8px 14px;font-size:12px">Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues. Cliquez un secteur pour déplacer ses sommets (clic droit sur un sommet pour le retirer).</p>
+    <div id="secs" class="secs"></div>
+    <div class="card-tools" style="border-top:1px solid var(--border);border-bottom:0">
+      <button id="btn-save-sec" class="btn small">⭳ Enregistrer les secteurs (GeoJSON)</button>
+      <label class="btn small" style="cursor:pointer">📄 Charger des secteurs<input type="file" id="file-sec" accept=".geojson,.json" hidden></label>
+    </div>
+  </section>
 </main>
 
 <div id="toasts" class="toasts" aria-live="polite"></div>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script src="vendor/papaparse.min.js"></script>
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="vendor/proj4.js"></script>

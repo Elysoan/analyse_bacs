@@ -10,7 +10,7 @@
   const fmt = n => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
   const fmt1 = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const tick = () => new Promise(r => setTimeout(r, 30));
-  const state = { tournees: null, addr: null, pop: null, result: null };
+  const state = { tournees: null, addr: null, pop: null, result: null, sectors: [], active: 0 };
 
   function toast(msg, error) {
     const t = document.createElement('div');
@@ -121,12 +121,15 @@
         units = Habitants.unitsFromRows(f => p.src.each(p.sheet, f), { idCol: p.id, popCol: p.pop, menCol: p.men, toNumber: IO.toNumber, window: win }).units;
       }
       const res = Tournees.compute({
-        tournees: state.tournees, crs: a.crs, units, width, perAddress, sectors: [],
+        tournees: state.tournees, crs: a.crs, units, width, perAddress, margin: 1500, sectors: [], exclusions: [],
         eachAddress: cb => a.src.each(a.sheet, r => cb(IO.toNumber(r[a.x]), IO.toNumber(r[a.y]), a.commune ? String(r[a.commune] || '').trim() : ''))
       });
       res.width = width; res.perAddress = perAddress; res.hasUnits = !!(units && units.length);
       state.result = res;
-      render();
+      state.sectors = [];
+      $('width-r').value = width; $('width-v').textContent = width + ' m';
+      mapShow();
+      recalc();
     } catch (e) { toast(e.message, true); }
     $('btn-run').disabled = false;
     $('hint').textContent = '';
@@ -134,6 +137,7 @@
 
   function render() {
     const r = state.result, rows = r.rows;
+    r.width = r.width || 30;
     const tot = rows.reduce((s, x) => ({ h: s.h + x.habitants, a: s.a + x.adresses, k: s.k + x.kmCollecte }), { h: 0, a: 0, k: 0 });
     $('results').classList.remove('hidden');
     $('summary').textContent = `${fmt(tot.h)} habitants · ${fmt(tot.a)} adresses · ${fmt1(tot.k)} km collectés`;
@@ -170,6 +174,169 @@
     const lines = [];
     state.result.rows.forEach(r => r.communes.forEach(c => lines.push([r.id, r.name, c.commune, c.adresses, c.habitants])));
     IO.download(`habitants_par_commune_${stamp()}.csv`, IO.toCSV(['Code', 'Libellé', 'Commune', 'Adresses', 'Habitants'], lines), 'text/csv;charset=utf-8');
+  });
+
+  // --- Carte et sectorisation ------------------------------------------------------------------------------
+  const toLL = Habitants.transform(Habitants.WORK, 'EPSG:4326'), toWork = Habitants.transform('EPSG:4326', Habitants.WORK);
+  const SIDE = { D: ['#0f7b6c', 4], G: ['#4a3aa7', 4], B: ['#2a78d6', 4], '': ['#8a919c', 2] };
+  const KIND = { add: { color: '#d55181', label: 'Secteur ajouté' }, excl: { color: '#e34948', label: 'Zone exclue' } };
+  let map, tLayer, aLayer, sLayer, vLayer, drawing = null, tmp = null, selected = null, seq = 0;
+
+  function initMap() {
+    if (map) return;
+    map = L.map('map', { preferCanvas: true });
+    L.tileLayer('https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&STYLE=normal&TILEMATRIXSET=PM&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+      { maxZoom: 19, attribution: '© IGN-F/Géoplateforme' }).addTo(map);
+    L.control.scale({ imperial: false }).addTo(map);
+    tLayer = L.featureGroup().addTo(map); aLayer = L.featureGroup().addTo(map);
+    sLayer = L.featureGroup().addTo(map); vLayer = L.featureGroup().addTo(map);
+    map.on('click', e => { if (drawing) { drawing.pts.push([e.latlng.lng, e.latlng.lat]); drawTmp(); } else if (selected) { selected = null; drawSectors(); } });
+    map.setView([46.6, 2.4], 6);
+  }
+
+  function mapShow() {
+    $('map-card').classList.remove('hidden');
+    initMap();
+    $('active').innerHTML = state.tournees.map((t, i) => `<option value="${i}">${esc(t.code)}${t.name && t.name !== t.code ? ' · ' + esc(t.name) : ''}</option>`).join('');
+    $('active').classList.toggle('hidden', state.tournees.length < 2);
+    state.active = 0; $('active').value = '0';
+    drawTournees();
+    setTimeout(() => { map.invalidateSize(); if (tLayer.getBounds().isValid()) map.fitBounds(tLayer.getBounds(), { padding: [20, 20] }); }, 60);
+  }
+
+  function drawTournees() {
+    tLayer.clearLayers();
+    state.tournees.forEach((tn, i) => tn.troncons.forEach(t => {
+      if (t.pts.length < 2) return;
+      const st = SIDE[t.side];
+      L.polyline(t.pts.map(q => [q[1], q[0]]), { color: st[0], weight: st[1], dashArray: t.side ? null : '5 5', opacity: i === state.active ? .95 : .3 })
+        .bindTooltip(`<b>${esc(t.nom || '(sans nom)')}</b> · ${esc(t.type)}<br>${esc(t.commune)} · ${fmt(t.dist)} m`, { sticky: true })
+        .on('click', () => { if (!drawing && state.tournees.length > 1) { state.active = i; $('active').value = String(i); drawTournees(); drawAddresses(); } }).addTo(tLayer);
+    }));
+  }
+
+  function drawAddresses() {
+    aLayer.clearLayers();
+    const r = state.result, tn = state.tournees[state.active], s = r.served[state.active];
+    const box = tn.troncons.reduce((b, t) => t.work.length ? [Math.min(b[0], t.bbox[0]), Math.min(b[1], t.bbox[1]), Math.max(b[2], t.bbox[2]), Math.max(b[3], t.bbox[3])] : b, [Infinity, Infinity, -Infinity, -Infinity]);
+    const m = r.width + 150;
+    let others = 0;
+    r.pts.forEach((p, k) => {
+      if (p.x < box[0] - m || p.x > box[2] + m || p.y < box[1] - m || p.y > box[3] + m) return;
+      const origin = s.taken.get(k);
+      if (!origin && ++others > 5000) return;
+      const ll = toLL([p.x, p.y]);
+      L.circleMarker([ll[1], ll[0]], origin
+        ? { radius: 4, weight: 1, color: '#16191d', fillColor: origin === 'secteur' ? '#d55181' : '#eda100', fillOpacity: .95, interactive: false }
+        : { radius: 2, weight: 0, fillColor: '#8a919c', fillOpacity: .6, interactive: false }).addTo(aLayer);
+    });
+  }
+
+  const latlngs = ring => ring.map(q => [q[1], q[0]]);
+
+  function drawSectors() {
+    sLayer.clearLayers(); vLayer.clearLayers();
+    state.sectors.forEach(sec => {
+      const k = KIND[sec.kind];
+      const poly = L.polygon(latlngs(sec.ring), { color: k.color, weight: sec.id === selected ? 3 : 2, dashArray: '6 4', fillOpacity: sec.id === selected ? .18 : .08, opacity: sec.code === state.tournees[state.active].code ? 1 : .5 })
+        .bindTooltip(`${k.label} · ${esc(sec.code)}`, { sticky: true })
+        .on('click', e => { if (drawing) return; L.DomEvent.stopPropagation(e); selected = sec.id; drawSectors(); }).addTo(sLayer);
+      if (sec.id !== selected) return;
+      sec.ring.forEach((q, i) => {
+        const mk = L.marker([q[1], q[0]], { draggable: true, icon: L.divIcon({ className: '', html: '<div class="vtx"></div>', iconSize: [12, 12] }) }).addTo(vLayer);
+        mk.on('drag', () => { const ll = mk.getLatLng(); sec.ring[i] = [ll.lng, ll.lat]; poly.setLatLngs(latlngs(sec.ring)); });
+        mk.on('dragend', recalc);
+        mk.on('contextmenu', () => { if (sec.ring.length > 3) { sec.ring.splice(i, 1); drawSectors(); recalc(); } });
+      });
+    });
+    $('secs').innerHTML = state.sectors.length ? state.sectors.map(sec => `<div class="row"><span class="tag" style="--tc:${KIND[sec.kind].color}">${KIND[sec.kind].label}</span><span>${esc(sec.code)} · ${sec.ring.length} sommets</span><button class="link" data-edit="${sec.id}">Modifier</button><button class="link" data-del="${sec.id}">Supprimer</button></div>`).join('')
+      : '<span class="muted">Aucun secteur. « Ajouter un secteur » pour un hameau ou un bac de regroupement hors de la bande ; « Exclure une zone » pour retirer des adresses.</span>';
+  }
+  $('secs').addEventListener('click', e => {
+    const d = e.target.closest('[data-del]'), ed = e.target.closest('[data-edit]');
+    if (d) { state.sectors = state.sectors.filter(s => s.id !== +d.dataset.del); selected = null; drawSectors(); recalc(); }
+    if (ed) { selected = +ed.dataset.edit; drawSectors(); const sec = state.sectors.find(s => s.id === selected); map.fitBounds(L.polygon(latlngs(sec.ring)).getBounds(), { padding: [40, 40] }); }
+  });
+
+  // Nouveau polygone : un clic par sommet, puis « Terminer ».
+  function startDraw(kind) {
+    drawing = { kind, pts: [] }; selected = null; drawSectors();
+    document.body.classList.add('drawing');
+    ['btn-add', 'btn-excl'].forEach(id => $(id).classList.add('hidden'));
+    ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.remove('hidden'));
+    map.doubleClickZoom.disable();
+    $('map-help').textContent = 'Cliquez sur la carte pour placer les sommets du polygone (3 au minimum), puis « Terminer ».';
+  }
+  function drawTmp() {
+    if (tmp) map.removeLayer(tmp);
+    tmp = L.polyline(latlngs(drawing.pts.concat(drawing.pts.length > 2 ? [drawing.pts[0]] : [])), { color: KIND[drawing.kind].color, weight: 2, dashArray: '4 4' }).addTo(map);
+  }
+  function endDraw(ok) {
+    if (ok && drawing.pts.length >= 3) {
+      const sec = { id: ++seq, kind: drawing.kind, code: state.tournees[state.active].code, ring: drawing.pts };
+      state.sectors.push(sec); selected = sec.id;
+    } else if (ok) toast('Un polygone demande au moins 3 sommets.', true);
+    if (tmp) map.removeLayer(tmp);
+    tmp = null; drawing = null;
+    document.body.classList.remove('drawing');
+    ['btn-add', 'btn-excl'].forEach(id => $(id).classList.remove('hidden'));
+    ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.add('hidden'));
+    map.doubleClickZoom.enable();
+    $('map-help').textContent = 'Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues. Cliquez un secteur pour déplacer ses sommets (clic droit sur un sommet pour le retirer).';
+    drawSectors(); recalc();
+  }
+  $('btn-add').addEventListener('click', () => startDraw('add'));
+  $('btn-excl').addEventListener('click', () => startDraw('excl'));
+  $('btn-finish').addEventListener('click', () => endDraw(true));
+  $('btn-cancel').addEventListener('click', () => endDraw(false));
+  $('active').addEventListener('change', () => { state.active = +$('active').value; drawTournees(); drawSectors(); drawAddresses(); });
+
+  // Recalcul après un changement de secteur ou de largeur (les adresses sont déjà en mémoire).
+  function polysFor(code, kind) {
+    return state.sectors.filter(s => s.kind === kind && s.code === code).map(s => [s.ring.map(toWork)]);
+  }
+  function recalc() {
+    const r = state.result;
+    if (!r) return;
+    r.served = state.tournees.map(t => Tournees.serve(t, r.pts, r.index, r.width, polysFor(t.code, 'add'), polysFor(t.code, 'excl')));
+    r.rows = state.tournees.map((t, i) => Tournees.summarize(t, r.served[i], r.weights, r.communes));
+    render(); drawSectors(); drawAddresses();
+  }
+  function setWidth(v) {
+    v = Math.max(5, Math.min(150, +v || 30));
+    $('width').value = v; $('width-r').value = v; $('width-v').textContent = v + ' m';
+    if (state.result) { state.result.width = v; recalc(); }
+  }
+  $('width-r').addEventListener('change', e => setWidth(e.target.value));
+  $('width-r').addEventListener('input', e => { $('width-v').textContent = e.target.value + ' m'; });
+  $('width').addEventListener('change', e => setWidth(e.target.value));
+
+  // Enregistrement / chargement des secteurs (GeoJSON, lisible dans ArcGIS Pro)
+  $('btn-save-sec').addEventListener('click', () => {
+    if (!state.sectors.length) return toast('Aucun secteur à enregistrer.', true);
+    const features = state.sectors.map(s => ({ type: 'Feature', properties: { type: s.kind === 'add' ? 'ajout' : 'exclusion', tournee: s.code }, geometry: { type: 'Polygon', coordinates: [s.ring.concat([s.ring[0]])] } }));
+    IO.download(`secteurs_${stamp()}.geojson`, JSON.stringify({ type: 'FeatureCollection', features }), 'application/geo+json');
+  });
+  $('file-sec').addEventListener('change', async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file || !state.result) return toast('Calculez d\'abord la tournée, puis chargez les secteurs.', true);
+    try {
+      const gj = JSON.parse(Tournees.decodeText(new Uint8Array(await file.arrayBuffer())));
+      const feats = gj.type === 'FeatureCollection' ? gj.features : [gj];
+      const codes = state.tournees.map(t => t.code);
+      let n = 0;
+      feats.forEach(f => {
+        if (!f.geometry || f.geometry.type !== 'Polygon') return;
+        const p = f.properties || {};
+        const ring = f.geometry.coordinates[0].slice(0, -1);
+        state.sectors.push({ id: ++seq, kind: /excl/i.test(p.type || p.kind || '') ? 'excl' : 'add', code: codes.includes(String(p.tournee)) ? String(p.tournee) : codes[state.active], ring });
+        n++;
+      });
+      if (!n) throw new Error('aucun polygone');
+      toast(`${n} secteur(s) chargé(s).`);
+      drawSectors(); recalc();
+    } catch (err) { toast(`Secteurs illisibles : ${err.message}`, true); }
   });
 
   // Exemple

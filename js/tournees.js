@@ -158,9 +158,10 @@
 
   /**
    * Adresses desservies par une tournée : { taken: Map(adresse -> 'troncon' | 'secteur'), perTroncon }.
-   * `sectors` : polygones facultatifs [[anneau, ...trous]] (EPSG:3035) — l'union avec la bande de collecte.
+   * `sectors` : polygones facultatifs [[anneau, ...trous]] (EPSG:3035) — l'union avec la bande de collecte ;
+   * `exclusions` : polygones dont les adresses sont retirées.
    */
-  function serve(tournee, pts, index, width, sectors) {
+  function serve(tournee, pts, index, width, sectors, exclusions) {
     const taken = new Map();
     const perTroncon = [];
     for (const t of tournee.troncons) {
@@ -185,6 +186,15 @@
         if (taken.has(i)) continue;
         const p = [pts[i].x, pts[i].y];
         if (Habitants.pointInRing(p, poly[0]) && !poly.slice(1).some(h => Habitants.pointInRing(p, h))) taken.set(i, 'secteur');
+      }
+    }
+    // Zones d'exclusion : leurs adresses sont retirées, quelle que soit leur origine.
+    for (const poly of exclusions || []) {
+      const box = Habitants.bboxOf(poly[0]);
+      for (const i of candidates(index, box)) {
+        if (!taken.has(i)) continue;
+        const p = [pts[i].x, pts[i].y];
+        if (Habitants.pointInRing(p, poly[0]) && !poly.slice(1).some(h => Habitants.pointInRing(p, h))) taken.delete(i);
       }
     }
     return { taken, perTroncon };
@@ -251,7 +261,7 @@
    * width, perAddress, sectors (polygones facultatifs, [[anneau, ...trous]] en EPSG:3035) }.
    */
   function compute(o) {
-    const win = windowOf(o.tournees, o.width + 1000);
+    const win = windowOf(o.tournees, o.margin === undefined ? o.width + 1000 : o.margin);
     if (!isFinite(win[0])) throw new Error('aucun tronçon avec tracé');
     const tr = Habitants.transform(o.crs, Habitants.WORK);
     const pts = [], communes = [];
@@ -269,9 +279,9 @@
     if (!pts.length) throw new Error('aucune adresse près des tournées : vérifiez le fichier (département) et le système de coordonnées');
     const weights = weigh(pts, o.units && o.units.length ? o.units : null, o.perAddress);
     const index = indexPoints(pts);
-    const served = o.tournees.map(tn => serve(tn, pts, index, o.width, o.sectors));
+    const served = o.tournees.map(tn => serve(tn, pts, index, o.width, o.sectors, o.exclusions));
     const rows = o.tournees.map((tn, i) => summarize(tn, served[i], weights, communes));
-    return { rows, served, pts, communes, weights, read, bad, kept: pts.length };
+    return { rows, served, pts, communes, weights, index, read, bad, kept: pts.length };
   }
 
   return { compute, parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };

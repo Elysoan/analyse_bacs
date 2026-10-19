@@ -119,3 +119,13 @@ test('calcul complet : projection, fenêtre, pondération par carreaux', () => {
   assert.strictEqual(r.rows[0].menages, 3);
   assert.throws(() => T.compute({ tournees: [tn], eachAddress: () => {}, crs: 'EPSG:4326', width: 30, perAddress: 2.2 }), /aucune adresse/);
 });
+
+test('zone d\'exclusion : retire des adresses de la bande et des secteurs', () => {
+  const tn = line('B', [[0, 0], [1000, 0]]);
+  const hole = [[[480, -20], [520, -20], [520, 5], [480, 5]]]; // contient les points 0 (500,-10) et 4 (500,-29)? non : y >= -20
+  const s = T.serve(tn, PTS, T.indexPoints(PTS), 30, [], [hole]);
+  assert.deepStrictEqual(Array.from(s.taken.keys()).sort(), [1, 4]);
+  const sector = [[[400, -100], [600, -100], [600, 100], [400, 100]]];
+  const s2 = T.serve(tn, PTS, T.indexPoints(PTS), 30, [sector], [hole]);
+  assert.deepStrictEqual(Array.from(s2.taken.keys()).sort(), [1, 2, 4]);
+});
