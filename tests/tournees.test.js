@@ -104,3 +104,18 @@ test('zip : plusieurs tournées, compressées ou non', async () => {
   assert.strictEqual(T.parseXML(T.decodeText(files[1].bytes)).code, 'EC227');
   await assert.rejects(() => T.unzip(new ArrayBuffer(40)), /zip/);
 });
+
+test('calcul complet : projection, fenêtre, pondération par carreaux', () => {
+  const H = require('../js/habitants.js');
+  const toLL = H.transform(H.WORK, 'EPSG:4326');
+  const [lon0, lat0] = toLL([3800000, 2800000]);
+  const tn = T.project(T.parseXML(`<ci nc="A" nl="A"><tr id="0" nr="R" ce="C" tr="Collecte à droite" dt="1000" gy="${[0, 1000].map(dx => { const q = toLL([3800010 + dx, 2800000]); return `(${q[0]},${q[1]})`; }).join(':')}"/></ci>`, 'a.xml'));
+  const adr = [[3800500, 2799990, 'C'], [3800500, 2800010, 'C'], [3900000, 2900000, 'Loin']].map(([x, y, c]) => { const q = toLL([x, y]); return [q[0], q[1], c]; });
+  const units = [{ bbox: [3800400, 2799800, 3800600, 2800000], pop: 6, men: 3 }, { bbox: [3800400, 2800000, 3800600, 2800200], pop: 4, men: 2 }];
+  const r = T.compute({ tournees: [tn], eachAddress: cb => adr.forEach(a => cb(a[0], a[1], a[2])), crs: 'EPSG:4326', units, width: 30, perAddress: 2.2 });
+  assert.strictEqual(r.kept, 2);          // l'adresse lointaine est écartée à la lecture
+  assert.strictEqual(r.rows[0].adresses, 1); // seule celle de droite (sud)
+  assert.strictEqual(r.rows[0].habitants, 6);
+  assert.strictEqual(r.rows[0].menages, 3);
+  assert.throws(() => T.compute({ tournees: [tn], eachAddress: () => {}, crs: 'EPSG:4326', width: 30, perAddress: 2.2 }), /aucune adresse/);
+});

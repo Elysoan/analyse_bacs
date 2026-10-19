@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Habitants d'une tournée</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .page { max-width: 1040px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+    .page h2 { font-size: 22px; }
+    .drops { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .slot { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+    .slot h3 { font-size: 14px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .slot h3 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
+    .slot p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+    .slot .drop { padding: 18px 10px; }
+    .go { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .go .btn { min-width: 220px; }
+    .opts { display: flex; gap: 18px; align-items: end; flex-wrap: wrap; }
+    .opts .field { margin: 0; width: 170px; }
+    .exports { display: flex; gap: 8px; flex-wrap: wrap; }
+    @media (max-width: 800px) { .drops { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-8 6 0 9-6s4-5 7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="18" r="1.6" fill="currentColor"/><circle cx="20" cy="4" r="1.6" fill="currentColor"/></svg>
+    <div><h1>Habitants d'une tournée</h1><span>Version simple</span></div>
+  </div>
+  <div class="top-actions">
+    <a class="btn ghost" href="habitants.html">Version complète (carte, secteurs, modèle d'export) →</a>
+    <button id="btn-demo" class="btn ghost">Exemple</button>
+  </div>
+</header>
+
+<main class="page">
+  <section>
+    <h2>Combien d'habitants sur ma tournée ?</h2>
+    <p class="muted">Déposez les fichiers, cliquez sur « Calculer », téléchargez le tableau. Rien ne quitte votre poste.</p>
+  </section>
+
+  <section class="drops">
+    <div class="slot" id="slot-t">
+      <h3><span class="n">1</span>Tournée(s)</h3>
+      <p>XML de la tournée, ou ZIP qui en contient plusieurs</p>
+      <label class="drop" id="drop-t"><input type="file" id="file-t" accept=".xml,.zip" multiple><b>Déposer ici</b><span>XML ou ZIP</span></label>
+      <div class="chip hidden" id="chip-t"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-t"></b><span id="info-t"></span></div></div>
+    </div>
+    <div class="slot" id="slot-a">
+      <h3><span class="n">2</span>Adresses</h3>
+      <p>BAN de votre département (adresses-72.csv.gz)</p>
+      <label class="drop" id="drop-a"><input type="file" id="file-a" accept=".csv,.txt,.gz"><b>Déposer ici</b><span>CSV ou CSV.GZ</span></label>
+      <div class="chip hidden" id="chip-a"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-a"></b><span id="info-a"></span></div></div>
+    </div>
+    <div class="slot" id="slot-p">
+      <h3><span class="n">3</span>Population <span class="muted" style="font-weight:400">(conseillé)</span></h3>
+      <p>Carreaux INSEE 200 m de votre département (CSV)</p>
+      <label class="drop" id="drop-p"><input type="file" id="file-p" accept=".csv,.txt,.xlsx"><b>Déposer ici</b><span>CSV avec idcar_200m et ind</span></label>
+      <div class="chip hidden" id="chip-p"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-p"></b><span id="info-p"></span></div></div>
+    </div>
+  </section>
+
+  <section class="go">
+    <button id="btn-run" class="btn primary big" disabled>Calculer</button>
+    <details class="advanced">
+      <summary>Réglages</summary>
+      <div class="opts">
+        <div class="field"><label>Largeur de collecte (m)</label><input type="number" id="width" value="30" min="5" max="500" step="5"></div>
+        <div class="field"><label>Habitants / adresse (sans carreaux)</label><input type="number" id="per-addr" value="2.2" min="0.5" max="10" step="0.1"></div>
+      </div>
+    </details>
+    <span id="hint" class="muted">Chargez les fichiers 1 et 2 pour commencer.</span>
+  </section>
+
+  <section id="results" class="card hidden">
+    <div class="card-tools">
+      <span class="card-title" id="summary"></span><span class="spacer"></span>
+      <div class="exports">
+        <button id="btn-csv" class="btn primary small">⭳ CSV</button>
+        <button id="btn-xlsx" class="btn primary small">⭳ Excel</button>
+        <button id="btn-communes" class="btn small">⭳ Par commune</button>
+      </div>
+    </div>
+    <div class="table-scroll"><table id="table" class="grid"></table></div>
+    <p id="notes" class="muted" style="padding:10px 14px;margin:0;font-size:12px"></p>
+  </section>
+</main>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<script src="vendor/papaparse.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/proj4.js"></script>
+<script src="js/io.js"></script>
+<script src="js/habitants.js"></script>
+<script src="js/habitants-demo.js"></script>
+<script src="js/tournees.js"></script>
+<script src="js/tournee-simple.js"></script>
+</body>
+</html>

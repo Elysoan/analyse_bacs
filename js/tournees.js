@@ -246,5 +246,33 @@
     };
   }
 
-  return { parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };
+  /**
+   * Calcul complet. o : { tournees (projetées), eachAddress(cb(x, y, commune)), crs, units (carreaux ou null),
+   * width, perAddress, sectors (polygones facultatifs, [[anneau, ...trous]] en EPSG:3035) }.
+   */
+  function compute(o) {
+    const win = windowOf(o.tournees, o.width + 1000);
+    if (!isFinite(win[0])) throw new Error('aucun tronçon avec tracé');
+    const tr = Habitants.transform(o.crs, Habitants.WORK);
+    const pts = [], communes = [];
+    let read = 0, bad = 0;
+    o.eachAddress((x, y, commune) => {
+      if (!Number.isFinite(x) || !Number.isFinite(y) || (x === 0 && y === 0)) { bad++; return; }
+      let p;
+      try { p = tr([x, y]); } catch (e) { bad++; return; }
+      if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) { bad++; return; }
+      read++;
+      if (p[0] < win[0] || p[0] > win[2] || p[1] < win[1] || p[1] > win[3]) return;
+      pts.push({ x: p[0], y: p[1] });
+      communes.push(commune || '');
+    });
+    if (!pts.length) throw new Error('aucune adresse près des tournées : vérifiez le fichier (département) et le système de coordonnées');
+    const weights = weigh(pts, o.units && o.units.length ? o.units : null, o.perAddress);
+    const index = indexPoints(pts);
+    const served = o.tournees.map(tn => serve(tn, pts, index, o.width, o.sectors));
+    const rows = o.tournees.map((tn, i) => summarize(tn, served[i], weights, communes));
+    return { rows, served, pts, communes, weights, read, bad, kept: pts.length };
+  }
+
+  return { compute, parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };
 });

@@ -39,6 +39,8 @@ Mesuré : 1,2 million de carreaux (106 Mo de CSV) lus et traités en ~14 s ; seu
 
 ### Tournée en tronçons (XML / ZIP)
 
+**Version simple : `tournee.html`** (3 dépôts, un bouton, un tableau + export CSV/Excel, même moteur). La version complète (`habitants.html`) ajoute carte, secteurs complémentaires et modèle d'export.
+
 Au lieu d'un polygone, on peut déposer le **XML d'une tournée** (`<ci>` / `<tr>`, un tronçon par ligne avec son type de collecte et son tracé) ou un **ZIP de plusieurs tournées**.
 
 - **Zone de collecte** : bande de largeur réglable (30 m par défaut) autour de chaque tronçon, **du côté collecté** (droite, gauche ou bilatérale, selon le sens de la tournée) ; « haut le pied » ne collecte rien.
