@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Habitants par circuit</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="9.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.3-3.2 2.5-5 5.5-5s5.2 1.8 5.5 5M15 14.3c2.6-.4 5 .9 5.5 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <div><h1>Habitants par circuit</h1><span>Circuits de collecte × carreaux INSEE</span></div>
+  </div>
+  <div class="top-actions">
+    <a class="btn ghost" href="index.html">← Analyse des bacs</a>
+    <button id="btn-demo" class="btn ghost">Exemple</button>
+    <button id="btn-help" class="btn ghost">? Aide</button>
+  </div>
+</header>
+
+<div class="layout" id="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="steps">
+
+      <section class="step" id="step-c">
+        <div class="step-head"><span class="step-num">1</span><div><h2>Circuits</h2><p>Polygones des circuits (GeoJSON)</p></div></div>
+        <label class="drop" id="drop-c">
+          <input type="file" id="file-c" accept=".geojson,.json">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b>Déposer le fichier ici</b><span>ou cliquer pour parcourir · GeoJSON exporté d'ArcGIS Pro</span>
+        </label>
+        <div class="chip hidden" id="chip-c">
+          <span class="chip-icon">✓</span>
+          <div class="chip-text"><b id="name-c"></b><span id="info-c"></span></div>
+          <button class="link" data-change="c">Changer</button>
+        </div>
+        <div id="cols-c" class="grid2 hidden">
+          <div class="field"><label>Code du circuit</label><select id="id-c"></select></div>
+          <div class="field"><label>Libellé</label><select id="nom-c"></select></div>
+        </div>
+      </section>
+
+      <section class="step locked" id="step-p">
+        <div class="step-head"><span class="step-num">2</span><div><h2>Population</h2><p>Carreaux INSEE de 200 m</p></div></div>
+        <label class="drop" id="drop-p">
+          <input type="file" id="file-p" accept=".csv,.txt,.xlsx,.xlsm,.xls,.ods,.geojson,.json">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b>Déposer le fichier ici</b><span>CSV, Excel ou GeoJSON · extrait de votre département conseillé</span>
+        </label>
+        <div class="chip hidden" id="chip-p">
+          <span class="chip-icon">✓</span>
+          <div class="chip-text"><b id="name-p"></b><span id="info-p"></span></div>
+          <button class="link" data-change="p">Changer</button>
+        </div>
+        <div id="sheet-p" class="field hidden"><label>Onglet</label><select></select></div>
+        <div id="cols-p" class="hidden">
+          <div class="field" id="field-idcar"><label>Identifiant du carreau <span class="muted">(idcar_200m)</span></label><select id="idcar-p"></select></div>
+          <div class="grid2">
+            <div class="field"><label>Habitants</label><select id="pop-p"></select></div>
+            <div class="field"><label>Ménages <span class="muted">(facultatif)</span></label><select id="men-p"></select></div>
+          </div>
+          <p id="hint-p" class="hint"></p>
+        </div>
+      </section>
+
+      <section class="step" id="step-f">
+        <div class="step-head"><span class="step-num">3</span><div><h2>Format d'export</h2><p>Les colonnes du fichier à remettre</p></div></div>
+        <div class="seg" role="radiogroup">
+          <label><input type="radio" name="fmt" value="standard" checked><span>Standard</span></label>
+          <label><input type="radio" name="fmt" value="custom"><span>Mon modèle</span></label>
+        </div>
+        <div id="fmt-custom" class="hidden">
+          <label class="btn block small" style="margin-top:10px;cursor:pointer">
+            📄 Charger un modèle (fichier dont la 1ʳᵉ ligne = les en-têtes)
+            <input type="file" id="file-f" accept=".csv,.txt,.xlsx,.xlsm,.xls,.ods" hidden>
+          </label>
+          <div id="fmt-rows" class="fmt-rows"></div>
+          <button id="btn-fmt-add" class="btn ghost small">+ Ajouter une colonne</button>
+          <p class="hint">Le format est mémorisé sur ce poste pour la prochaine fois.</p>
+        </div>
+        <div class="field"><label>Source (colonne « Source »)</label><input id="meta-source" placeholder="ex. INSEE Filosofi 2021 – carreaux 200 m"></div>
+      </section>
+    </div>
+
+    <div class="run">
+      <button id="btn-run" class="btn primary block big" disabled>Calculer les habitants</button>
+      <p id="run-hint" class="muted center">Chargez les circuits et la population pour commencer.</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <section id="empty" class="welcome">
+      <h2>Combien d'habitants sur un circuit de collecte ?</h2>
+      <div class="howto">
+        <div><span class="n">1</span><b>Déposez les circuits</b><p>Un polygone par circuit (GeoJSON depuis ArcGIS Pro).</p></div>
+        <div><span class="n">2</span><b>Déposez la population</b><p>Les carreaux INSEE de 200 m : habitants et ménages.</p></div>
+        <div><span class="n">3</span><b>Choisissez le format</b><p>Standard, ou les en-têtes de votre propre fichier modèle.</p></div>
+      </div>
+      <div class="welcome-finds">
+        <p><b>Méthode :</b> chaque carreau compte pour la part de sa surface située dans le circuit (calcul exact, projection équivalente). C'est une <b>estimation</b> : les habitants sont supposés répartis uniformément dans le carreau.</p>
+      </div>
+      <div class="welcome-actions">
+        <button class="btn primary" data-demo>Essayer avec un exemple</button>
+        <span class="muted">🔒 Les fichiers restent sur votre poste : rien n'est envoyé sur un serveur.</span>
+      </div>
+    </section>
+
+    <section id="busy" class="busy hidden">
+      <div class="spinner"></div>
+      <h2>Calcul en cours…</h2>
+      <p id="busy-msg" class="muted"></p>
+    </section>
+
+    <section id="results" class="hidden">
+      <div class="results-head">
+        <div>
+          <h2>Résultats</h2>
+          <p id="context" class="muted"></p>
+        </div>
+        <div class="actions">
+          <button id="btn-csv" class="btn primary">⭳ CSV</button>
+          <button id="btn-xlsx" class="btn primary">⭳ Excel</button>
+          <button id="btn-geojson" class="btn">⭳ GeoJSON</button>
+        </div>
+      </div>
+
+      <div id="kpis" class="kpis"></div>
+      <div id="warnings" class="notice hidden"></div>
+
+      <div class="panes">
+        <div class="card map-card" id="map-card">
+          <div class="card-tools">
+            <span class="card-title">Carte</span>
+            <span class="muted" id="map-hint">Cliquez un circuit pour voir les carreaux utilisés</span>
+            <span class="spacer"></span>
+            <button id="btn-map-size" class="btn ghost small">⤢ Agrandir</button>
+          </div>
+          <div id="map"></div>
+        </div>
+        <div class="card side">
+          <div class="card-tools"><span class="card-title">Aperçu de l'export</span></div>
+          <div id="preview" class="preview"></div>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <div class="card-tools">
+          <span class="card-title">Circuits</span>
+          <input id="search" type="search" placeholder="Rechercher un code ou un libellé…">
+          <span class="spacer"></span>
+          <span class="muted">Cliquez un en-tête pour trier, une ligne pour la localiser</span>
+        </div>
+        <div class="table-scroll"><table id="table" class="grid"></table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="help">
+  <div class="help">
+    <div class="help-head"><h2>Comment ça marche</h2><button class="btn ghost small" data-close>✕</button></div>
+    <ol>
+      <li><b>Circuits</b> : un GeoJSON de polygones, un par circuit. Dans ArcGIS Pro : <i>Convertir entités en JSON</i> (cocher « Format GeoJSON »). Pour un tracé en ligne, créez d'abord une zone tampon (<i>Tampon</i>). Choisissez les colonnes de code et de libellé.</li>
+      <li><b>Population</b> : le fichier INSEE des données carroyées à 200 m (<a href="https://www.insee.fr/fr/statistiques/8735162" target="_blank" rel="noopener">page INSEE, millésime 2021</a>, formats CSV, GeoPackage et shapefile). Le fichier national est lourd : découpez-le à votre département (ArcGIS Pro, <i>Extraire par masque</i> ou <i>Sélection par localisation</i>) et exportez en CSV. Colonnes utilisées : <code>idcar_200m</code>, <code>ind</code> (habitants), <code>men</code> (ménages). Une couche de polygones GeoJSON avec une colonne de population fonctionne aussi.</li>
+      <li><b>Format d'export</b> : « Standard », ou « Mon modèle » : chargez un fichier existant, les colonnes sont reconnues d'après leurs en-têtes (Code circuit, Population, Surface, etc.) et vous pouvez les corriger, en ajouter ou fixer une valeur. Le résultat suit exactement l'ordre et les noms de votre modèle.</li>
+    </ol>
+    <h3>Bon à savoir</h3>
+    <ul>
+      <li><b>Estimation</b> : au prorata de la surface du carreau dans le circuit. Un circuit qui coupe un carreau dense en deux compte la moitié de ses habitants, même si les logements sont d'un seul côté.</li>
+      <li>Les carreaux de moins de 11 ménages fiscaux sont imputés par l'INSEE (indicateur <code>i_est_200</code>) : sur un petit circuit rural, la marge d'erreur est plus forte.</li>
+      <li>La colonne « Couverture » indique la part de la surface du circuit située dans des carreaux habités ; les zones sans habitant sont absentes du fichier INSEE.</li>
+      <li>Si deux circuits se chevauchent, leurs habitants sont comptés dans chacun : la somme dépasse alors la population réelle.</li>
+      <li>La population correspond au millésime du fichier INSEE, pas à aujourd'hui.</li>
+    </ul>
+  </div>
+</dialog>
+
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/papaparse.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/proj4.js"></script>
+<script src="js/io.js"></script>
+<script src="js/habitants.js"></script>
+<script src="js/habitants-demo.js"></script>
+<script src="js/habitants-app.js"></script>
+</body>
+</html>

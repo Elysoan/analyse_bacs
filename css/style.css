@@ -374,3 +374,20 @@ dialog::backdrop { background: rgba(10, 14, 20, .45); }
   .kpis { grid-template-columns: 1fr 1fr; }
   .welcome { padding: 20px; }
 }
+
+/* ===== Habitants par circuit ===== */
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.fmt-rows { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; max-height: 280px; overflow: auto; }
+.fmt-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 4px; align-items: center; }
+.fmt-row .v { grid-column: 1 / -1; }
+.fmt-row .x { padding: 4px 7px; }
+.notice {
+  background: color-mix(in srgb, var(--c-faible) 14%, var(--surface)); border: 1px solid var(--c-faible);
+  border-radius: var(--radius); padding: 10px 14px; font-size: 13px;
+}
+.notice ul { margin: 6px 0 0; padding-left: 20px; }
+.preview { overflow: auto; padding: 8px 14px 12px; }
+.preview .table-scroll { max-height: 400px; }
+.preview .note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+table.mini th { white-space: nowrap; padding-right: 10px; }
+table.mini td { white-space: nowrap; padding-right: 10px; }

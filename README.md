@@ -25,6 +25,18 @@ Menu **Exemples** : données fictives au format réel (base biodéchets + levée
 - **Levées** (export Paprec) : `Jour` (numéro de série Excel), `Flux`, `Libelle Code Levee` (« Identifié, autorisé, collecté »…), `Numero puce`, `Latitude*` / `Longitude*`.
 - Puces abîmées par Excel rapprochées automatiquement : 0 en tête perdu (`0117068081` → `117068081`) et notation scientifique (`0116794E12` → `1,16794E+17`, `01167726E4` → `11677260000`).
 
+## Habitants par circuit (`habitants.html`)
+
+Second outil : **nombre d'habitants sur chaque circuit de collecte**, exporté dans un format prédéfini.
+
+1. **Circuits** : un GeoJSON de polygones (ArcGIS Pro : *Convertir entités en JSON*). Pour des tracés en ligne, créer d'abord un tampon.
+2. **Population** : données carroyées INSEE à 200 m ([page INSEE, millésime 2021](https://www.insee.fr/fr/statistiques/8735162), CSV / GeoPackage / shapefile). Colonnes `idcar_200m`, `ind` (habitants), `men` (ménages). Une couche de polygones GeoJSON avec une colonne de population est aussi acceptée.
+3. **Format d'export** : *Standard*, ou *Mon modèle* : on charge un fichier existant (CSV / Excel dont la 1ʳᵉ ligne = en-têtes), les colonnes sont reconnues par leur nom (code, libellé, population, surface, densité, source, date…), corrigeables à la main, avec colonnes vides ou valeur fixe. Le format est mémorisé dans le navigateur. Export CSV (Excel FR), Excel (.xlsx) ou GeoJSON (circuits + habitants, pour ArcGIS Pro).
+
+**Méthode** : chaque carreau compte pour la part de sa surface située dans le circuit (découpage exact en projection équivalente EPSG:3035, trous et multi-polygones gérés). C'est une estimation : les habitants sont supposés répartis uniformément dans le carreau. Un clic sur un circuit affiche les carreaux utilisés et leur part. Les circuits qui se chevauchent comptent leurs habitants en double.
+
+Mesuré : 1,2 million de carreaux (106 Mo de CSV) lus et traités en ~14 s ; seuls les carreaux proches des circuits sont gardés en mémoire. Menu **Exemple** : données fictives (`exemples/circuits_exemple.geojson`, `exemples/carreaux_exemple.csv`).
+
 ## Analyse des levées
 
 Les levées sont agrégées par bac (identifiant puce ou n° de bac), puis rapprochées de la base client.

@@ -4,6 +4,7 @@
  *
  * readFile() renvoie une "source" qui expose, pour chaque onglet :
  *   preview(onglet) -> 2 000 premières lignes (paramétrage)
+ *   headers(onglet) -> en-têtes (même sans ligne de données)
  *   count(onglet)   -> nombre de lignes (approximatif pour les CSV)
  *   all(onglet)     -> toutes les lignes (mises en cache)
  *   each(onglet, f) -> parcours ligne à ligne, sans tout garder en mémoire (gros fichiers de levées)
@@ -49,6 +50,7 @@
       kind: 'table',
       sheetNames: Object.keys(sheets),
       preview: s => sheets[s].slice(0, PREVIEW),
+      headers: s => columnsOf(sheets[s]),
       count: s => sheets[s].length,
       all: s => sheets[s],
       each: (s, f) => sheets[s].forEach(f),
@@ -67,6 +69,7 @@
       kind: 'csv',
       sheetNames: ['csv'],
       preview: () => head.data,
+      headers: () => head.meta.fields,
       count: () => full ? full.length : Math.max(head.data.length, lines - (text.endsWith('\n') ? 1 : 0)),
       all: () => full || (full = Papa.parse(text, opts).data),
       each: (s, f) => {
@@ -105,6 +108,7 @@
       kind: 'excel',
       sheetNames: wb.SheetNames,
       preview: s => { const x = sheet(s); return x.ref ? x.rows(x.ref.s.r + 1, Math.min(x.ref.e.r, x.ref.s.r + PREVIEW)) : []; },
+      headers: s => sheet(s).headers,
       count: s => { const x = sheet(s); return x.full ? x.full.length : (x.ref ? x.ref.e.r - x.ref.s.r : 0); },
       all: s => { const x = sheet(s); return x.full || (x.full = x.ref ? x.rows(x.ref.s.r + 1, x.ref.e.r) : []); },
       each: (s, f) => {
