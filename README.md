@@ -37,6 +37,16 @@ Second outil : **nombre d'habitants sur chaque circuit de collecte**, exporté d
 
 Mesuré : 1,2 million de carreaux (106 Mo de CSV) lus et traités en ~14 s ; seuls les carreaux proches des circuits sont gardés en mémoire. Menu **Exemple** : données fictives (`exemples/circuits_exemple.geojson`, `exemples/carreaux_exemple.csv`).
 
+### Tournée en tronçons (XML / ZIP)
+
+Au lieu d'un polygone, on peut déposer le **XML d'une tournée** (`<ci>` / `<tr>`, un tronçon par ligne avec son type de collecte et son tracé) ou un **ZIP de plusieurs tournées**.
+
+- **Zone de collecte** : bande de largeur réglable (30 m par défaut) autour de chaque tronçon, **du côté collecté** (droite, gauche ou bilatérale, selon le sens de la tournée) ; « haut le pied » ne collecte rien.
+- **Adresses** : BAN du département (`adresses-XX.csv.gz`, lu directement) ou toute liste avec coordonnées ; chaque adresse n'est comptée qu'une fois.
+- **Habitants par adresse** : population du carreau INSEE ÷ nombre d'adresses du carreau (population conservée), sinon un nombre fixe d'habitants par adresse.
+- **Rural, bacs de regroupement** : *Secteurs complémentaires*, des polygones GeoJSON dont toutes les adresses sont ajoutées (sans doublon avec la bande).
+- Sorties : habitants, ménages, adresses, km collectés / haut le pied, habitants par km collecté, détail par commune (CSV), tronçons et adresses retenues en GeoJSON pour contrôle dans ArcGIS Pro.
+
 ## Analyse des levées
 
 Les levées sont agrégées par bac (identifiant puce ou n° de bac), puis rapprochées de la base client.

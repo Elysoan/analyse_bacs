@@ -129,6 +129,10 @@ test('format d\'export : reconnaissance des colonnes d\'un modèle', () => {
   assert.strictEqual(g('Nb habitants'), 'habitants');
   assert.strictEqual(g('Surface km2'), 'surface');
   assert.strictEqual(g('Date de calcul'), 'date');
+  assert.strictEqual(g('Km collectés'), 'kmCollecte');
+  assert.strictEqual(g('Adresses desservies'), 'adresses');
+  assert.strictEqual(g('Habitants par km collecté'), 'habParKm');
+  assert.strictEqual(g('Communes'), 'communes');
   assert.strictEqual(g('Commentaire'), '');
   const fmt = H.formatFromHeaders(['Code', 'Population', 'Population INSEE', 'Commentaire']);
   assert.deepStrictEqual(fmt.map(c => c.field), ['id', 'habitants', '', '']); // un champ n'est utilisé qu'une fois

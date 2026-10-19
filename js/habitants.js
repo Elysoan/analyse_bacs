@@ -296,6 +296,11 @@
   // `re` sert à reconnaître la colonne d'un modèle ; l'ordre compte (le plus spécifique d'abord).
   const FIELDS = [
     { key: 'densite', label: 'Densité (hab/km²)', re: /densit/i },
+    { key: 'habParKm', label: 'Habitants par km collecté', re: /(par|\/)\s*km\s*(collect|coll)|hab\w*\s*\/\s*km\s*coll/i },
+    { key: 'kmHlp', label: 'Km haut le pied', re: /haut.*pied|hlp|km.*vide/i },
+    { key: 'kmCollecte', label: 'Km collectés', re: /km.*collect|collect.*km|kilom/i },
+    { key: 'adresses', label: 'Adresses desservies', re: /adresse|point.*collecte|foyers? desservis/i },
+    { key: 'communes', label: 'Communes (habitants)', re: /communes?\b/i },
     { key: 'menages', label: 'Nombre de ménages', re: /m[ée]nage|foyer/i },
     { key: 'carreaux', label: 'Nombre de carreaux', re: /carreau/i },
     { key: 'couverture', label: 'Couverture (%)', re: /couverture/i },
@@ -307,6 +312,7 @@
     { key: 'id', label: 'Code circuit', re: /code|identifiant|^id\b|n°|num|circuit|tourn[ée]e/i }
   ];
   const DISPLAY_ORDER = ['id', 'nom', 'habitants', 'menages', 'surface', 'densite', 'carreaux', 'couverture', 'source', 'date'];
+  const DISPLAY_ORDER_TOURNEE = ['id', 'nom', 'habitants', 'menages', 'adresses', 'kmCollecte', 'kmHlp', 'habParKm', 'communes', 'source', 'date'];
 
   function guessField(header) {
     const f = FIELDS.find(x => x.re.test(String(header)));
@@ -315,8 +321,8 @@
 
   const fieldLabel = key => (FIELDS.find(f => f.key === key) || {}).label || '';
 
-  function standardFormat() {
-    return DISPLAY_ORDER.map(key => ({ header: fieldLabel(key), field: key, fixed: '' }));
+  function standardFormat(tournees) {
+    return (tournees ? DISPLAY_ORDER_TOURNEE : DISPLAY_ORDER).map(key => ({ header: fieldLabel(key), field: key, fixed: '' }));
   }
 
   // Un modèle = les en-têtes d'un fichier existant ; chaque colonne est rattachée à un champ si reconnue.
@@ -340,6 +346,11 @@
       case 'densite': return Math.round(r.densite);
       case 'carreaux': return r.carreaux;
       case 'couverture': return Math.round(r.couverture * 100);
+      case 'adresses': return r.adresses === undefined ? '' : r.adresses;
+      case 'kmCollecte': return r.kmCollecte === undefined ? '' : Math.round(r.kmCollecte * 10) / 10;
+      case 'kmHlp': return r.kmHlp === undefined ? '' : Math.round(r.kmHlp * 10) / 10;
+      case 'habParKm': return r.habParKm === undefined ? '' : Math.round(r.habParKm * 10) / 10;
+      case 'communes': return (r.communes || []).map(c => `${c.commune} (${c.habitants})`).join(' ; ');
       case 'source': return meta.source || '';
       case 'date': return meta.date || '';
       default: return '';
