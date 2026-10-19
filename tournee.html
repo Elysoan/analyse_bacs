@@ -15,6 +15,9 @@
     .slot h3 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
     .slot p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
     .slot .drop { padding: 18px 10px; }
+    .slot .dl { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
+    .slot .dl a { color: var(--accent); }
+    .slot .dl input { width: 54px; padding: 2px 6px; text-align: center; }
     .go { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
     .go .btn { min-width: 220px; }
     .opts { display: flex; gap: 18px; align-items: end; flex-wrap: wrap; }
@@ -59,12 +62,17 @@
       <h3><span class="n">2</span>Adresses</h3>
       <p>BAN de votre département (adresses-72.csv.gz)</p>
       <label class="drop" id="drop-a"><input type="file" id="file-a" accept=".csv,.txt,.gz"><b>Déposer ici</b><span>CSV ou CSV.GZ</span></label>
+      <p class="dl">⭳ Télécharger la BAN du département
+        <input id="dep" value="72" maxlength="3" aria-label="Numéro de département" title="Numéro de département (ex. 72, 2A, 971)">
+        <a id="dl-ban" href="https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-72.csv.gz" target="_blank" rel="noopener">adresses-72.csv.gz</a>
+        · <a href="https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/" target="_blank" rel="noopener">tous les fichiers</a></p>
       <div class="chip hidden" id="chip-a"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-a"></b><span id="info-a"></span></div></div>
     </div>
     <div class="slot" id="slot-p">
       <h3><span class="n">3</span>Population <span class="muted" style="font-weight:400">(conseillé)</span></h3>
       <p>Carreaux INSEE 200 m de votre département (CSV)</p>
       <label class="drop" id="drop-p"><input type="file" id="file-p" accept=".csv,.txt,.xlsx"><b>Déposer ici</b><span>CSV avec idcar_200m et ind</span></label>
+      <p class="dl">⭳ <a href="https://www.insee.fr/fr/statistiques/8735162" target="_blank" rel="noopener">Données carroyées 200 m (INSEE, Filosofi 2021)</a> : fichier national à décompresser. CSV conseillé (colonnes idcar_200m, ind, men). Pour un fichier plus léger, découpez-le à votre département dans ArcGIS Pro.</p>
       <div class="chip hidden" id="chip-p"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-p"></b><span id="info-p"></span></div></div>
     </div>
   </section>

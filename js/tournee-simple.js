@@ -95,6 +95,14 @@
   }
   wire('a', async files => setAddr(await sourceOf(files[0])));
 
+  // Lien de téléchargement de la BAN selon le département saisi
+  $('dep').addEventListener('input', () => {
+    const d = $('dep').value.trim().toUpperCase().replace(/[^0-9AB]/g, '');
+    const a = $('dl-ban');
+    a.href = `https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-${d || 'XX'}.csv.gz`;
+    a.textContent = `adresses-${d || 'XX'}.csv.gz`;
+  });
+
   // 3. Population (carreaux)
   function setPop(src) {
     const sheet = src.sheetNames[0], cols = src.headers(sheet), rows = src.preview(sheet);
