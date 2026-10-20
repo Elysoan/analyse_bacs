@@ -10,9 +10,10 @@
   const fmt = n => Number(n).toLocaleString('fr-FR', { maximumFractionDigits: 0 });
   const fmt1 = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const tick = () => new Promise(r => setTimeout(r, 30));
-  const state = { tournees: null, addr: null, pop: null, result: null, sectors: [], active: 0 };
+  const state = { tournees: null, addr: null, pop: null, result: null, sectors: [], active: 0, skipPop: false, checked: false, problem: '', step: -1 };
 
   function toast(msg, error) {
+    if (error) problem(msg);
     const t = document.createElement('div');
     t.className = 'toast' + (error ? ' error' : '');
     t.textContent = msg;
@@ -46,6 +47,7 @@
   function refresh() {
     const ready = state.tournees && state.addr;
     $('btn-run').disabled = !ready;
+    guide();
     $('hint').textContent = ready ? (state.pop ? '' : 'Sans carreaux, un nombre fixe d\'habitants par adresse est utilisé (réglable).') :
       'Chargez les fichiers 1 et 2 pour commencer.';
   }
@@ -163,11 +165,13 @@
       });
       res.width = width; res.perAddress = perAddress; res.hasUnits = !!(units && units.length);
       state.result = res;
+      state.checked = false; state.problem = '';
       state.sectors = [];
       Object.keys(manual).forEach(k => delete manual[k]);
       $('width-r').value = width; $('width-v').textContent = width + ' m';
       mapShow();
       recalc();
+      guide();
     } catch (e) { toast(e.message, true); }
     $('btn-run').disabled = false;
     $('hint').textContent = '';
@@ -421,6 +425,113 @@
     } catch (err) { toast(`Secteurs illisibles : ${err.message}`, true); }
   });
 
+  // --- Guide pas à pas -----------------------------------------------------------------------------------
+  const STEPS = ['Tournée', 'Adresses', 'Population', 'Calcul', 'Contrôle', 'Export'];
+  const FOCUS = [['slot-t'], ['slot-a'], ['slot-p'], ['modes', 'btn-run'], ['map-card'], ['results']];
+  const HINTS = [
+    [/aucune adresse près/i, 'Le fichier d\'adresses ne correspond sans doute pas au département de la tournée : vérifiez le numéro de département de la BAN.'],
+    [/format non reconnu|aucun tronçon|aucune tournée|zip|xml/i, 'La tournée doit être un fichier .xml (ou un .zip contenant des .xml).'],
+    [/coordonn/i, 'Le fichier d\'adresses doit contenir des colonnes de coordonnées (lon et lat pour la BAN).'],
+    [/carreau|habitants introuvable/i, 'Prenez le fichier des carreaux de 200 m de l\'INSEE (colonnes idcar_200m et ind), au format CSV.']
+  ];
+  let guideOn = true;
+  try { guideOn = localStorage.getItem('tournee.guide') !== 'off'; } catch (e) { /* ignoré */ }
+
+  function problem(msg) {
+    const hint = (HINTS.find(h => h[0].test(msg)) || [])[1];
+    state.problem = msg + (hint ? ' → ' + hint : '');
+    guide();
+  }
+
+  function currentStep() {
+    if (!state.tournees) return 0;
+    if (!state.addr) return 1;
+    if (!state.pop && !state.skipPop) return 2;
+    if (!state.result) return 3;
+    return state.checked ? 5 : 4;
+  }
+
+  const btn = (label, onclick, primary, href) => {
+    const el = document.createElement(href ? 'a' : 'button');
+    el.className = 'btn small' + (primary ? ' primary' : '');
+    el.textContent = label;
+    if (href) { el.href = href; el.target = '_blank'; el.rel = 'noopener'; } else el.addEventListener('click', onclick);
+    return el;
+  };
+
+  function guide() {
+    if (!$('guide')) return;
+    const step = currentStep(), r = state.result;
+    $('guide').classList.toggle('hidden', !guideOn);
+    $('coach-show').classList.toggle('hidden', guideOn);
+    $('stepper').innerHTML = STEPS.map((s, i) => `<li class="${i < step ? 'done' : i === step ? 'cur' : ''}"><b>${i + 1}</b>${s}</li>`).join('');
+    const sum = r ? r.rows.reduce((t, x) => ({ h: t.h + x.habitants, c: t.c + x.habCollectes }), { h: 0, c: 0 }) : null;
+    const km = state.tournees ? state.tournees.reduce((t, tn) => t + tn.troncons.filter(x => x.side).reduce((a, x) => a + x.dist, 0), 0) / 1000 : 0;
+    const A = [];
+    let title, text;
+    if (step === 0) {
+      title = 'Déposez votre tournée';
+      text = 'Glissez le fichier XML de la tournée dans la case 1, ou un ZIP qui en contient plusieurs : vous obtiendrez une ligne de résultat par tournée.';
+      A.push(btn('Essayer avec un exemple', () => $('btn-demo').click(), true));
+    } else if (step === 1) {
+      title = 'Ajoutez les adresses';
+      text = `Tournée lue : ${fmt1(km)} km de collecte. Déposez maintenant la BAN de votre département (adresses-XX.csv.gz, inutile de la décompresser) dans la case 2.`;
+      A.push(btn('⭳ Télécharger la BAN ' + ($('dep').value.trim() || ''), null, true, $('dl-ban').href));
+    } else if (step === 2) {
+      title = 'Ajoutez la population (conseillé)';
+      text = 'Les carreaux INSEE répartissent les habitants adresse par adresse, ce qui donne un résultat bien plus juste. Sans eux, un nombre fixe d\'habitants par adresse est utilisé.';
+      A.push(btn('⭳ Télécharger les carreaux INSEE', null, true, 'https://www.insee.fr/fr/statistiques/8735162'));
+      A.push(btn('Continuer sans', () => { state.skipPop = true; guide(); }));
+    } else if (step === 3) {
+      title = 'Réglez et calculez';
+      text = 'Vérifiez le mode de collecte de chaque tournée (sac : 100 %, bac TEOM ou REOM fixe : 85 %), puis cliquez sur Calculer. La largeur de collecte (30 m) se règle dans « Réglages » ou plus tard sur la carte.';
+      A.push(btn('Calculer', () => $('btn-run').click(), true));
+    } else if (step === 4) {
+      title = 'Contrôlez sur la carte';
+      text = `${fmt(sum.h)} habitants desservis, ${fmt(sum.c)} collectés (estim.). Zoomez : un « + » est une adresse non retenue, cliquez pour l'ajouter ; cliquez un point jaune pour le retirer. « Ajouter un secteur » couvre un hameau ou un bac de regroupement.`;
+      A.push(btn('Aller à la carte', () => scrollTo('map-card')));
+      A.push(btn('Tout est bon : exporter', () => { state.checked = true; guide(); }, true));
+    } else {
+      title = 'Téléchargez le résultat';
+      text = 'Tableau en CSV ou Excel, détail par commune. Sous la carte, vous pouvez enregistrer vos secteurs et ajustements pour les réutiliser. Pour une autre tournée : « Changer » sur la case 1.';
+      A.push(btn('⭳ CSV', () => $('btn-csv').click(), true));
+      A.push(btn('⭳ Excel', () => $('btn-xlsx').click(), true));
+      A.push(btn('Revenir au contrôle', () => { state.checked = false; guide(); }));
+    }
+    $('coach-n').textContent = step + 1;
+    $('coach-title').textContent = title;
+    $('coach-text').textContent = text;
+    $('coach-problem').textContent = '⚠ ' + state.problem;
+    $('coach-problem').classList.toggle('hidden', !state.problem);
+    const box = $('coach-actions');
+    box.innerHTML = '';
+    A.forEach(a => box.appendChild(a));
+    document.querySelectorAll('.focus').forEach(e => e.classList.remove('focus'));
+    if (guideOn) FOCUS[step].forEach(id => { const e = $(id); if (e && !e.classList.contains('hidden')) e.classList.add('focus'); });
+    if (step !== state.step) {
+      if (state.step !== -1 && guideOn) scrollTo(FOCUS[step][0]);
+      state.problem = step > state.step ? '' : state.problem;
+      $('coach-problem').classList.toggle('hidden', !state.problem);
+      state.step = step;
+    }
+  }
+  function scrollTo(id) { const e = $(id); if (e) setTimeout(() => e.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80); }
+  $('coach-hide').addEventListener('click', () => { guideOn = false; try { localStorage.setItem('tournee.guide', 'off'); } catch (e) { /* ignoré */ } guide(); });
+  $('coach-show').addEventListener('click', () => { guideOn = true; try { localStorage.removeItem('tournee.guide'); } catch (e) { /* ignoré */ } guide(); });
+
+  // « Changer » : remet une case à zéro (le résultat doit alors être recalculé)
+  document.querySelectorAll('[data-reset]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.reset;
+    state[{ t: 'tournees', a: 'addr', p: 'pop' }[k]] = null;
+    if (k === 'p') state.skipPop = false;
+    $('drop-' + k).classList.remove('hidden');
+    $('chip-' + k).classList.add('hidden');
+    if (k === 't') $('modes').classList.add('hidden');
+    state.result = null; state.problem = ''; state.checked = false; state.step = -1;
+    $('results').classList.add('hidden'); $('map-card').classList.add('hidden');
+    refresh();
+  }));
+
   // Exemple
   $('btn-demo').addEventListener('click', () => {
     const d = HabitantsDemo.buildTournee();
@@ -429,4 +540,5 @@
     const p = IO.arraySource({ carreaux: d.rows }); p.name = 'carreaux_exemple.csv'; setPop(p);
     $('btn-run').click();
   });
+  refresh();
 })();

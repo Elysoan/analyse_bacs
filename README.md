@@ -40,6 +40,7 @@ Mesuré : 1,2 million de carreaux (106 Mo de CSV) lus et traités en ~14 s ; seu
 ### Tournée en tronçons (XML / ZIP)
 
 **Version simple : `tournee.html`** (3 dépôts, un bouton, un tableau + export CSV/Excel, même moteur). La version complète (`habitants.html`) ajoute carte, secteurs complémentaires et modèle d'export.
+Le guide pas à pas (bandeau d'étapes, coach contextuel, case à remplir mise en évidence, aide en cas d'erreur) accompagne de la tournée à l'export ; il se masque et se réaffiche.
 Page autonome (un seul fichier, ouvrable par double-clic, avec carte et secteurs ajustables) : `dist/tournee.html`, régénérée par `node tools/build-standalone.js`.
 
 Au lieu d'un polygone, on peut déposer le **XML d'une tournée** (`<ci>` / `<tr>`, un tronçon par ligne avec son type de collecte et son tracé) ou un **ZIP de plusieurs tournées**.

@@ -15,6 +15,26 @@
     .slot h3 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
     .slot p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
     .slot .drop { padding: 18px 10px; }
+    .guide { position: sticky; top: 56px; z-index: 900; background: var(--bg); padding: 8px 0 6px; display: flex; flex-direction: column; gap: 10px; }
+    .stepper { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; }
+    .stepper li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding: 4px 10px 4px 5px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); }
+    .stepper li b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2); font-size: 11px; }
+    .stepper li.done { color: var(--text); } .stepper li.done b { background: var(--brand); color: #fff; font-size: 0; } .stepper li.done b::after { content: "✓"; font-size: 12px; }
+    .stepper li.cur { color: #fff; background: var(--navy); border-color: var(--navy); font-weight: 600; } .stepper li.cur b { background: #fff; color: var(--navy); }
+    .coach { display: flex; gap: 14px; align-items: center; background: var(--navy); color: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: var(--shadow); }
+    .coach-n { flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--brand); display: grid; place-items: center; font-weight: 700; font-size: 17px; }
+    .coach-body { flex: 1; min-width: 0; }
+    .coach h3 { font-size: 15px; margin-bottom: 3px; }
+    .coach p { margin: 0; font-size: 13px; line-height: 1.5; color: #d7e0f3; }
+    .coach .problem { margin-top: 6px; color: #ffd9cf; background: rgba(198,108,57,.28); border-radius: 6px; padding: 6px 10px; }
+    .coach-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .coach .btn { background: transparent; color: #fff; border-color: rgba(255,255,255,.45); text-decoration: none; }
+    .coach .btn:hover { border-color: #fff; }
+    .coach .btn.primary { background: var(--brand); border-color: var(--brand); }
+    .coach .link { color: #b9c6e4; align-self: flex-start; font-size: 12px; }
+    .focus { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 10px; animation: pulse 1.8s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { outline-color: var(--brand); } 50% { outline-color: color-mix(in srgb, var(--brand) 30%, transparent); } }
+    @media (max-width: 800px) { .coach { flex-wrap: wrap; } .guide { top: 0; position: static; } }
     .modes { margin-top: 10px; font-size: 12px; }
     .modes .mrow { display: grid; grid-template-columns: 1fr 1.5fr 62px; gap: 6px; align-items: center; margin-top: 4px; }
     .modes .mlist { max-height: 140px; overflow: auto; }
@@ -59,13 +79,28 @@
     <p class="muted">Déposez les fichiers, cliquez sur « Calculer », téléchargez le tableau. Rien ne quitte votre poste.</p>
   </section>
 
+  <section id="guide" class="guide" aria-live="polite">
+    <ol id="stepper" class="stepper"></ol>
+    <div class="coach">
+      <div class="coach-n" id="coach-n"></div>
+      <div class="coach-body">
+        <h3 id="coach-title"></h3>
+        <p id="coach-text"></p>
+        <p id="coach-problem" class="problem hidden"></p>
+      </div>
+      <div class="coach-actions" id="coach-actions"></div>
+      <button id="coach-hide" class="link" title="Masquer le guide">Masquer</button>
+    </div>
+  </section>
+  <button id="coach-show" class="btn small hidden" style="align-self:flex-start">? Afficher le guide</button>
+
   <section class="drops">
     <div class="slot" id="slot-t">
       <h3><span class="n">1</span>Tournée(s)</h3>
       <p>XML de la tournée, ou ZIP qui en contient plusieurs</p>
       <label class="drop" id="drop-t"><input type="file" id="file-t" accept=".xml,.zip" multiple><b>Déposer ici</b><span>XML ou ZIP</span></label>
       <div id="modes" class="modes hidden"></div>
-      <div class="chip hidden" id="chip-t"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-t"></b><span id="info-t"></span></div></div>
+      <div class="chip hidden" id="chip-t"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-t"></b><span id="info-t"></span></div><button class="link" data-reset="t">Changer</button></div>
     </div>
     <div class="slot" id="slot-a">
       <h3><span class="n">2</span>Adresses</h3>
@@ -75,14 +110,14 @@
         <input id="dep" value="72" maxlength="3" aria-label="Numéro de département" title="Numéro de département (ex. 72, 2A, 971)">
         <a id="dl-ban" href="https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/adresses-72.csv.gz" target="_blank" rel="noopener">adresses-72.csv.gz</a>
         · <a href="https://adresse.data.gouv.fr/data/ban/adresses/latest/csv/" target="_blank" rel="noopener">tous les fichiers</a></p>
-      <div class="chip hidden" id="chip-a"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-a"></b><span id="info-a"></span></div></div>
+      <div class="chip hidden" id="chip-a"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-a"></b><span id="info-a"></span></div><button class="link" data-reset="a">Changer</button></div>
     </div>
     <div class="slot" id="slot-p">
       <h3><span class="n">3</span>Population <span class="muted" style="font-weight:400">(conseillé)</span></h3>
       <p>Carreaux INSEE 200 m de votre département (CSV)</p>
       <label class="drop" id="drop-p"><input type="file" id="file-p" accept=".csv,.txt,.xlsx"><b>Déposer ici</b><span>CSV avec idcar_200m et ind</span></label>
       <p class="dl">⭳ <a href="https://www.insee.fr/fr/statistiques/8735162" target="_blank" rel="noopener">Données carroyées 200 m (INSEE, Filosofi 2021)</a> : fichier national à décompresser. CSV conseillé (colonnes idcar_200m, ind, men). Pour un fichier plus léger, découpez-le à votre département dans ArcGIS Pro.</p>
-      <div class="chip hidden" id="chip-p"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-p"></b><span id="info-p"></span></div></div>
+      <div class="chip hidden" id="chip-p"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-p"></b><span id="info-p"></span></div><button class="link" data-reset="p">Changer</button></div>
     </div>
   </section>
 
