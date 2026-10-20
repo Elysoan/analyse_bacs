@@ -236,7 +236,7 @@
     L.control.scale({ imperial: false }).addTo(map);
     tLayer = L.featureGroup().addTo(map); aLayer = L.featureGroup().addTo(map);
     sLayer = L.featureGroup().addTo(map); vLayer = L.featureGroup().addTo(map);
-    map.on('click', e => { if (drawing) { drawing.pts.push([e.latlng.lng, e.latlng.lat]); drawTmp(); } else if (selected) { selected = null; drawSectors(); } });
+    map.on('click', e => { if (drawing && drawing.kind === 'lasso') return; if (drawing) { drawing.pts.push([e.latlng.lng, e.latlng.lat]); drawTmp(); } else if (selected) { selected = null; drawSectors(); } });
     map.on('moveend', () => { if (state.result) drawAddresses(); });
     map.setView([46.6, 2.4], 6);
   }
@@ -298,9 +298,9 @@
         L.circleMarker(at, { radius: 2, weight: 0, fillColor: '#8a919c', fillOpacity: .6, interactive: false }).addTo(aLayer);
       }
     });
-    $('map-help').textContent = drawing ? 'Cliquez sur la carte pour placer les sommets du polygone (3 au minimum), puis « Terminer ».' : HELP + (zoomed ? '' : ' Zoomez pour afficher les « + » et ajouter une adresse d\'un clic.');
+    $('map-help').textContent = drawing ? (drawing.kind === 'lasso' ? 'Lasso : maintenez le clic et dessinez la zone d\'un seul geste, puis validez.' : 'Cliquez sur la carte pour placer les sommets du polygone (3 au minimum), puis « Terminer ».') : HELP + (zoomed ? '' : ' Zoomez pour afficher les « + » et ajouter une adresse d\'un clic.');
   }
-  const HELP = 'Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues (clic pour retirer). « + » : adresses non retenues (clic pour ajouter). Cliquez un secteur pour déplacer ses sommets (clic droit sur un sommet pour le retirer).';
+  const HELP = 'Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues (clic pour retirer). « + » : adresses non retenues (clic pour ajouter). « Ajouter des adresses » : lasso en un seul geste. Cliquez une zone exclue pour déplacer ses sommets (clic droit sur un sommet pour le retirer).';
 
   const latlngs = ring => ring.map(q => [q[1], q[0]]);
 
@@ -320,7 +320,7 @@
       });
     });
     $('secs').innerHTML = state.sectors.length ? state.sectors.map(sec => `<div class="row"><span class="tag" style="--tc:${KIND[sec.kind].color}">${KIND[sec.kind].label}</span><span>${esc(sec.code)} · ${sec.ring.length} sommets</span><button class="link" data-edit="${sec.id}">Modifier</button><button class="link" data-del="${sec.id}">Supprimer</button></div>`).join('')
-      : '<span class="muted">Aucun secteur. « Ajouter un secteur » pour un hameau ou un bac de regroupement hors de la bande ; « Exclure une zone » pour retirer des adresses.</span>';
+      : '<span class="muted">Aucune zone exclue. « Ajouter des adresses » : lasso en un seul geste autour d\'un hameau ou d\'un bac de regroupement ; « Exclure une zone » retire des adresses.</span>';
   }
   $('secs').addEventListener('click', e => {
     const d = e.target.closest('[data-del]'), ed = e.target.closest('[data-edit]');
@@ -328,12 +328,17 @@
     if (ed) { selected = +ed.dataset.edit; drawSectors(); const sec = state.sectors.find(s => s.id === selected); map.fitBounds(L.polygon(latlngs(sec.ring)).getBounds(), { padding: [40, 40] }); }
   });
 
-  // Nouveau polygone : un clic par sommet, puis « Terminer ».
+  // Exclusion : polygone dessiné par clics, puis « Terminer ».
+  const setButtons = (busy, label) => {
+    ['btn-lasso', 'btn-excl'].forEach(id => $(id).classList.toggle('hidden', busy));
+    ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.toggle('hidden', !busy));
+    if (label) $('btn-finish').textContent = label;
+    $('lasso-info').classList.toggle('hidden', !busy || !drawing || drawing.kind !== 'lasso');
+  };
   function startDraw(kind) {
     drawing = { kind, pts: [] }; selected = null; drawSectors();
     document.body.classList.add('drawing');
-    ['btn-add', 'btn-excl'].forEach(id => $(id).classList.add('hidden'));
-    ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.remove('hidden'));
+    setButtons(true, 'Terminer');
     map.doubleClickZoom.disable();
     drawAddresses();
   }
@@ -342,6 +347,7 @@
     tmp = L.polyline(latlngs(drawing.pts.concat(drawing.pts.length > 2 ? [drawing.pts[0]] : [])), { color: KIND[drawing.kind].color, weight: 2, dashArray: '4 4' }).addTo(map);
   }
   function endDraw(ok) {
+    if (drawing && drawing.kind === 'lasso') return endLasso();
     if (ok && drawing.pts.length >= 3) {
       const sec = { id: ++seq, kind: drawing.kind, code: state.tournees[state.active].code, ring: drawing.pts };
       state.sectors.push(sec); selected = sec.id;
@@ -349,14 +355,104 @@
     if (tmp) map.removeLayer(tmp);
     tmp = null; drawing = null;
     document.body.classList.remove('drawing');
-    ['btn-add', 'btn-excl'].forEach(id => $(id).classList.remove('hidden'));
-    ['btn-finish', 'btn-cancel'].forEach(id => $(id).classList.add('hidden'));
+    setButtons(false);
     map.doubleClickZoom.enable();
     drawSectors(); recalc();
   }
-  $('btn-add').addEventListener('click', () => startDraw('add'));
+
+  // --- Lasso : un seul geste (clic maintenu) trace la zone ; les adresses non retenues qu'elle contient sont
+  //     sélectionnées, puis ajoutées après validation. Les adresses déjà retenues ne sont jamais décochées.
+  let pending = null, pLayer = null, pPoly = null;
+
+  function selectIn(ringLL, ti) {
+    const r = state.result, served = r.served[ti], ring = ringLL.map(toWork);
+    const ids = [], already = [];
+    Tournees.candidates(r.index, Habitants.bboxOf(ring)).forEach(k => {
+      if (!Habitants.pointInRing([r.pts[k].x, r.pts[k].y], ring)) return;
+      (served.taken.has(k) ? already : ids).push(k);
+    });
+    return { ids, already };
+  }
+
+  function startLasso() {
+    drawing = { kind: 'lasso', path: [], down: false };
+    pending = null; selected = null; drawSectors();
+    document.body.classList.add('drawing');
+    map.dragging.disable(); map.doubleClickZoom.disable();
+    $('lasso-info').textContent = 'Maintenez le clic et dessinez d\'un seul geste le contour de la zone.';
+    setButtons(true, 'Valider');
+    $('btn-finish').classList.add('hidden');
+    const c = map.getContainer();
+    c.addEventListener('pointerdown', lassoDown); c.addEventListener('pointermove', lassoMove); c.addEventListener('pointerup', lassoUp); c.addEventListener('pointercancel', lassoUp);
+    drawAddresses();
+  }
+  const lassoPoint = e => { const ll = map.mouseEventToLatLng(e); return [ll.lng, ll.lat]; };
+  function clearPending() {
+    pending = null;
+    if (tmp) { map.removeLayer(tmp); tmp = null; }
+    if (pPoly) { map.removeLayer(pPoly); pPoly = null; }
+    if (pLayer) { map.removeLayer(pLayer); pLayer = null; }
+  }
+  function lassoDown(e) {
+    if (!drawing || drawing.kind !== 'lasso' || e.target.closest('.leaflet-control') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    clearPending();
+    $('btn-finish').classList.add('hidden');
+    drawing.down = true; drawing.path = [lassoPoint(e)];
+    map.getContainer().setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+  function lassoMove(e) {
+    if (!drawing || !drawing.down) return;
+    const q = lassoPoint(e), last = drawing.path[drawing.path.length - 1];
+    if (map.latLngToContainerPoint([q[1], q[0]]).distanceTo(map.latLngToContainerPoint([last[1], last[0]])) < 3) return;
+    drawing.path.push(q);
+    if (tmp) map.removeLayer(tmp);
+    tmp = L.polyline(latlngs(drawing.path.concat([drawing.path[0]])), { color: '#2a78d6', weight: 2, dashArray: '4 4', interactive: false }).addTo(map);
+  }
+  function lassoUp(e) {
+    if (!drawing || !drawing.down) return;
+    drawing.down = false;
+    if (tmp) { map.removeLayer(tmp); tmp = null; }
+    if (drawing.path.length < 5) { $('lasso-info').textContent = 'Tracé trop court : maintenez le clic et dessinez un contour fermé.'; return; }
+    const ring = drawing.path, sel = selectIn(ring, state.active);
+    pending = { ring, ids: sel.ids, already: sel.already.length };
+    pPoly = L.polygon(latlngs(ring), { color: '#2a78d6', weight: 2, fillOpacity: .12, interactive: false }).addTo(map);
+    pLayer = L.featureGroup().addTo(map);
+    const r = state.result;
+    let h = 0;
+    sel.ids.forEach(k => {
+      h += r.weights.pop[k];
+      const ll = toLL([r.pts[k].x, r.pts[k].y]);
+      L.circleMarker([ll[1], ll[0]], { radius: 6, weight: 2, color: '#fff', fillColor: '#2a78d6', fillOpacity: .95, interactive: false }).addTo(pLayer);
+    });
+    const taux = state.tournees[state.active].taux;
+    $('lasso-info').textContent = sel.ids.length
+      ? `${fmt(sel.ids.length)} adresse(s) sélectionnée(s) · +${fmt(h * taux)} habitants collectés · ${fmt(sel.already.length)} déjà retenue(s), conservée(s). Validez, ou retracez la zone.`
+      : `Aucune nouvelle adresse dans cette zone (${fmt(sel.already.length)} déjà retenue(s)). Retracez la zone.`;
+    $('btn-finish').classList.toggle('hidden', !sel.ids.length);
+  }
+  function validateLasso() {
+    if (!pending || !pending.ids.length) return;
+    const m = man(state.tournees[state.active].code);
+    pending.ids.forEach(k => { if (!m.rem.delete(k)) m.add.add(k); });
+    toast(`${pending.ids.length} adresse(s) ajoutée(s).`);
+    endLasso(true);
+  }
+  function endLasso(applied) {
+    const c = map.getContainer();
+    c.removeEventListener('pointerdown', lassoDown); c.removeEventListener('pointermove', lassoMove); c.removeEventListener('pointerup', lassoUp); c.removeEventListener('pointercancel', lassoUp);
+    clearPending();
+    drawing = null;
+    document.body.classList.remove('drawing');
+    map.dragging.enable(); map.doubleClickZoom.enable();
+    setButtons(false);
+    $('btn-finish').textContent = 'Terminer';
+    if (applied) recalc(); else drawAddresses();
+  }
+
+  $('btn-lasso').addEventListener('click', startLasso);
   $('btn-excl').addEventListener('click', () => startDraw('excl'));
-  $('btn-finish').addEventListener('click', () => endDraw(true));
+  $('btn-finish').addEventListener('click', () => (drawing && drawing.kind === 'lasso' ? validateLasso() : endDraw(true)));
   $('btn-cancel').addEventListener('click', () => endDraw(false));
   $('active').addEventListener('change', () => { state.active = +$('active').value; drawTournees(); drawSectors(); drawAddresses(); });
 
@@ -368,7 +464,7 @@
     const r = state.result;
     if (!r) return;
     r.served = state.tournees.map(t => {
-      const sv = Tournees.serve(t, r.pts, r.index, r.width, polysFor(t.code, 'add'), polysFor(t.code, 'excl')), m = man(t.code);
+      const sv = Tournees.serve(t, r.pts, r.index, r.width, [], polysFor(t.code, 'excl')), m = man(t.code);
       m.rem.forEach(k => sv.taken.delete(k));
       m.add.forEach(k => { if (!sv.taken.has(k)) sv.taken.set(k, 'manuel'); });
       return sv;
@@ -416,7 +512,12 @@
         if (!f.geometry || f.geometry.type !== 'Polygon') return;
         const p = f.properties || {};
         const ring = f.geometry.coordinates[0].slice(0, -1);
-        state.sectors.push({ id: ++seq, kind: /excl/i.test(p.type || p.kind || '') ? 'excl' : 'add', code: codes.includes(String(p.tournee)) ? String(p.tournee) : codes[state.active], ring });
+        const code = codes.includes(String(p.tournee)) ? String(p.tournee) : codes[state.active];
+        if (/excl/i.test(p.type || p.kind || '')) state.sectors.push({ id: ++seq, kind: 'excl', code, ring });
+        else { // ancien « secteur ajouté » : devient une sélection d'adresses
+          const m = man(code);
+          selectIn(ring, codes.indexOf(code)).ids.forEach(k => { if (!m.rem.delete(k)) m.add.add(k); });
+        }
         n++;
       });
       if (!n) throw new Error('aucun polygone ni adresse reconnue');
@@ -488,12 +589,12 @@
       A.push(btn('Calculer', () => $('btn-run').click(), true));
     } else if (step === 4) {
       title = 'Contrôlez sur la carte';
-      text = `${fmt(sum.h)} habitants desservis, ${fmt(sum.c)} collectés (estim.). Zoomez : un « + » est une adresse non retenue, cliquez pour l'ajouter ; cliquez un point jaune pour le retirer. « Ajouter un secteur » couvre un hameau ou un bac de regroupement.`;
+      text = `${fmt(sum.h)} habitants desservis, ${fmt(sum.c)} collectés (estim.). Zoomez : un « + » est une adresse non retenue, cliquez pour l'ajouter ; cliquez un point jaune pour le retirer. « Ajouter des adresses » : un lasso d'un seul geste autour d'un hameau ou d'un bac de regroupement, puis validation.`;
       A.push(btn('Aller à la carte', () => scrollTo('map-card')));
       A.push(btn('Tout est bon : exporter', () => { state.checked = true; guide(); }, true));
     } else {
       title = 'Téléchargez le résultat';
-      text = 'Tableau en CSV ou Excel, détail par commune. Sous la carte, vous pouvez enregistrer vos secteurs et ajustements pour les réutiliser. Pour une autre tournée : « Changer » sur la case 1.';
+      text = 'Tableau en CSV ou Excel, détail par commune. Sous la carte, vous pouvez enregistrer vos zones exclues et ajustements pour les réutiliser. Pour une autre tournée : « Changer » sur la case 1.';
       A.push(btn('⭳ CSV', () => $('btn-csv').click(), true));
       A.push(btn('⭳ Excel', () => $('btn-xlsx').click(), true));
       A.push(btn('Revenir au contrôle', () => { state.checked = false; guide(); }));

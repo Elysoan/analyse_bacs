@@ -53,7 +53,7 @@
     .maptools input[type=range] { width: 110px; padding: 0; }
     .secs { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
     .secs .row { display: flex; gap: 10px; align-items: center; }
-    .drawing #map { cursor: crosshair; }
+    .drawing #map { cursor: crosshair; touch-action: none; }
     .plus { width: 16px; height: 16px; line-height: 14px; text-align: center; font: 700 14px/14px system-ui, sans-serif; color: #5f6672; background: #fff; border: 1.5px solid #8a919c; border-radius: 50%; cursor: pointer; }
     .plus:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
     .plus.rem { border-color: #e34948; color: #e34948; }
@@ -153,8 +153,9 @@
       <select id="active" title="Tournée active"></select>
       <span class="maptools">Largeur <input type="range" id="width-r" min="5" max="150" step="5" value="30"><b id="width-v">30 m</b></span>
       <span class="spacer"></span>
-      <button id="btn-add" class="btn small" title="Dessiner un polygone : ses adresses s'ajoutent à la tournée">＋ Ajouter un secteur</button>
+      <button id="btn-lasso" class="btn small" title="Dessinez d'un seul geste la zone : les adresses non retenues qu'elle contient sont sélectionnées, puis ajoutées après validation">＋ Ajouter des adresses</button>
       <button id="btn-excl" class="btn small" title="Dessiner un polygone : ses adresses sont retirées">✂ Exclure une zone</button>
+      <span id="lasso-info" class="muted hidden" style="font-size:12px;max-width:520px"></span>
       <button id="btn-finish" class="btn primary small hidden">Terminer</button>
       <button id="btn-cancel" class="btn small hidden">Annuler</button>
     </div>
@@ -162,8 +163,8 @@
     <p id="map-help" class="muted" style="margin:0;padding:8px 14px;font-size:12px">Traits : tournée (vert = droite, violet = gauche, bleu = bilatérale, gris = haut le pied). Points jaunes : adresses retenues (clic pour retirer). « + » : adresses non retenues (clic pour ajouter).</p>
     <div id="secs" class="secs"></div>
     <div class="card-tools" style="border-top:1px solid var(--border);border-bottom:0">
-      <button id="btn-save-sec" class="btn small">⭳ Enregistrer secteurs et ajustements (GeoJSON)</button>
-      <label class="btn small" style="cursor:pointer">📄 Charger secteurs et ajustements<input type="file" id="file-sec" accept=".geojson,.json" hidden></label>
+      <button id="btn-save-sec" class="btn small">⭳ Enregistrer zones et ajustements (GeoJSON)</button>
+      <label class="btn small" style="cursor:pointer">📄 Charger zones et ajustements<input type="file" id="file-sec" accept=".geojson,.json" hidden></label>
     </div>
   </section>
 </main>
