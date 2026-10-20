@@ -391,3 +391,8 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .preview .note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 table.mini th { white-space: nowrap; padding-right: 10px; }
 table.mini td { white-space: nowrap; padding-right: 10px; }
+
+.modes { margin-top: 10px; font-size: 12px; }
+.modes .mrow { display: grid; grid-template-columns: 1fr 1.5fr 62px; gap: 6px; align-items: center; margin-top: 4px; }
+.modes .mlist { max-height: 140px; overflow: auto; }
+.modes select, .modes input { padding: 4px 6px; }

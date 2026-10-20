@@ -73,6 +73,15 @@ test('synthèse : habitants, adresses, kilomètres et communes', () => {
   assert.strictEqual(T.summarize(tn, { taken }, { pop: Float64Array.from([2, 3, 4]), men: new Float64Array(3), mode: 'fixe' }, ['A', 'A', 'B']).menages, '');
   assert.strictEqual(r.adresses, 3);
   assert.strictEqual(r.adressesSecteur, 1);
+  assert.strictEqual(r.taux, 0.85);                       // bac par défaut
+  assert.strictEqual(r.habCollectes, 8);                  // 9 × 0,85 = 7,65
+  assert.strictEqual(r.presentees, 3);                    // 3 × 0,85 = 2,55
+  assert.strictEqual(r.production, '');
+  tn.taux = 1; tn.mode = 'sac';
+  const sac = T.summarize(tn, { taken }, { pop: Float64Array.from([2, 3, 4]), men: Float64Array.from([1, 1, 2]) }, ['A', 'A', 'B'], { kgPerPerson: 0.5 });
+  assert.strictEqual(sac.habCollectes, 9);
+  assert.strictEqual(sac.production, 5);                  // 9 × 0,5 = 4,5 -> 5
+  assert.strictEqual(sac.modeLabel, 'Sac');
   assert.strictEqual(r.kmCollecte, 0.2);
   assert.strictEqual(r.kmHlp, 0.11);
   assert.deepStrictEqual(r.communes, [{ commune: 'A', adresses: 2, habitants: 5 }, { commune: 'B', adresses: 1, habitants: 4 }]);

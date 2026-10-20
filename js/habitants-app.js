@@ -170,8 +170,40 @@
     $('name-c').textContent = state.tournees.name;
     $('info-c').textContent = `${fmt(list.reduce((s, t) => s + t.troncons.length, 0))} tronçons · ${fmt1(km)} km collectés`;
     $('step-c').classList.add('done');
+    renderModes();
     lockSteps(); refreshRun();
   }
+
+  // Mode de collecte (sac / bac) -> taux de présentation, par tournée
+  const modeOptions = sel => Object.keys(Tournees.MODES).map(k => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(Tournees.MODES[k].label)}</option>`).join('');
+  function renderModes() {
+    const list = state.tournees.list;
+    $('modes').innerHTML = '<b>Mode de collecte et taux de présentation</b>' +
+      (list.length > 1 ? `<div class="mrow"><span>Toutes</span><select id="mode-all"><option value="">— choisir —</option>${modeOptions('')}</select><span></span></div>` : '') +
+      '<div class="mlist">' + list.map((t, i) => `<div class="mrow" data-i="${i}"><span title="${esc(t.name)}">${esc(t.code)}</span><select class="m">${modeOptions(t.mode)}</select><input class="t" type="number" min="1" max="100" step="1" value="${Math.round(t.taux * 100)}" title="Taux de présentation (%)"></div>`).join('') + '</div>' +
+      '<p class="hint">Sac = 100 %, bac en TEOM ou REOM fixe = 85 %.</p>';
+  }
+  function setModeOf(t, mode) { t.mode = mode; if (mode !== 'autre') t.taux = Tournees.MODES[mode].taux; }
+  $('modes').addEventListener('change', e => {
+    const list = state.tournees.list;
+    if (e.target.id === 'mode-all') {
+      if (!e.target.value) return;
+      list.forEach(t => setModeOf(t, e.target.value));
+      renderModes();
+    } else {
+      const row = e.target.closest('.mrow'), t = list[+row.dataset.i];
+      if (e.target.classList.contains('m')) { setModeOf(t, e.target.value); row.querySelector('.t').value = Math.round(t.taux * 100); }
+      else { t.taux = Math.max(0.01, Math.min(1, (+e.target.value || 100) / 100)); t.mode = 'autre'; row.querySelector('.m').value = 'autre'; }
+    }
+    if (state.result && state.result.mode === 'troncons') refreshSummaries();
+  });
+  const kgPerPerson = () => +String($('kg').value).replace(',', '.') || 0;
+  function refreshSummaries() {
+    const r = state.result;
+    r.rows = r.tournees.map((t, i) => Object.assign(Tournees.summarize(t, r.served[i], r.weights, r.communes, { kgPerPerson: kgPerPerson() }), { sectors: r.rows[i].sectors }));
+    renderAll();
+  }
+  $('kg').addEventListener('change', () => { if (state.result && state.result.mode === 'troncons') refreshSummaries(); });
 
   // Secteurs complémentaires (facultatif)
   $('file-s').addEventListener('change', async e => {
@@ -293,7 +325,7 @@
   }
 
   // --- Format d'export ------------------------------------------------------------------------------------------
-  const activeFormat = () => state.custom ? state.format : Habitants.standardFormat(isT());
+  const activeFormat = () => state.custom ? state.format : Habitants.standardFormat(isT(), kgPerPerson() > 0);
 
   document.querySelectorAll('input[name=fmt]').forEach(r => r.addEventListener('change', () => {
     if (!r.checked) return;
@@ -468,7 +500,7 @@
       const sec = sectorCircuits.filter(c => !sectorCol || String(c.props[sectorCol]).trim().toLowerCase() === String(tn.code).toLowerCase());
       const s = Tournees.serve(tn, pts, index, width, [].concat(...sec.map(c => c.parts)));
       served.push(s);
-      rows.push(Tournees.summarize(tn, s, weights, communes));
+      rows.push(Tournees.summarize(tn, s, weights, communes, { kgPerPerson: kgPerPerson() }));
       rows[rows.length - 1].sectors = sec;
     }
     return { mode: 'troncons', rows, tournees: list, pts, communes, served, weights, width, perAddr, read, bad, kept: pts.length, popNote, sectorCircuits };
@@ -485,10 +517,12 @@
     const notes = [];
     let kpis;
     if (T) {
-      const tot = r.rows.reduce((a, x) => ({ h: a.h + x.habitants, adr: a.adr + x.adresses, kc: a.kc + x.kmCollecte, kh: a.kh + x.kmHlp }), { h: 0, adr: 0, kc: 0, kh: 0 });
+      const tot = r.rows.reduce((a, x) => ({ h: a.h + x.habitants, hc: a.hc + x.habCollectes, adr: a.adr + x.adresses, kc: a.kc + x.kmCollecte, kh: a.kh + x.kmHlp, kg: a.kg + (x.production || 0) }), { h: 0, hc: 0, adr: 0, kc: 0, kh: 0, kg: 0 });
       $('context').textContent = `${state.tournees.name} × ${state.addr.name}${state.pop && !r.popNote ? ' × ' + state.pop.name : ''} · ${fmt(r.kept)} adresses retenues autour des tournées · bande de ${r.width} m`;
       kpis = [
         [fmt(tot.h), 'habitants desservis (estimation)', 'var(--accent)'],
+        [fmt(tot.hc), 'habitants collectés (estim., × taux de présentation)', 'var(--c-seulB)'],
+        ...(kgPerPerson() > 0 ? [[fmt(tot.kg) + ' kg', 'par passage (estimation)', 'var(--c-recent)']] : []),
         [fmt(tot.adr), 'adresses desservies', 'var(--c-seulB)'],
         [fmt1(tot.kc) + ' km', `de collecte, + ${fmt1(tot.kh)} km haut le pied`, 'var(--c-autre)'],
         [fmt(tot.kc ? tot.h / tot.kc : 0) + ' hab/km', 'par km collecté', 'var(--c-arret)'],
@@ -540,6 +574,9 @@
     ['name', 'Libellé', false, x => esc(x.name)],
     ['habitants', 'Habitants', true, x => fmt(x.habitants)],
     ['menages', 'Ménages', true, x => x.menages === '' ? '–' : fmt(x.menages)],
+    ['mode', 'Mode', false, x => esc(x.modeLabel) + ' · ' + Math.round(x.taux * 100) + ' %'],
+    ['habCollectes', 'Hab. collectés', true, x => `<b>${fmt(x.habCollectes)}</b>`],
+    ['production', 'Production (kg/passage)', true, x => x.production === '' ? '–' : fmt(x.production)],
     ['adresses', 'Adresses', true, x => fmt(x.adresses) + (x.adressesSecteur ? ` <small class="muted">(dont ${fmt(x.adressesSecteur)} secteur)</small>` : '')],
     ['kmCollecte', 'Km collectés', true, x => fmt1(x.kmCollecte)],
     ['kmHlp', 'Km haut le pied', true, x => fmt1(x.kmHlp)],

@@ -15,6 +15,10 @@
     .slot h3 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
     .slot p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
     .slot .drop { padding: 18px 10px; }
+    .modes { margin-top: 10px; font-size: 12px; }
+    .modes .mrow { display: grid; grid-template-columns: 1fr 1.5fr 62px; gap: 6px; align-items: center; margin-top: 4px; }
+    .modes .mlist { max-height: 140px; overflow: auto; }
+    .modes select, .modes input { padding: 4px 6px; }
     .slot .dl { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
     .slot .dl a { color: var(--accent); }
     .slot .dl input { width: 54px; padding: 2px 6px; text-align: center; }
@@ -59,6 +63,7 @@
       <h3><span class="n">1</span>Tournée(s)</h3>
       <p>XML de la tournée, ou ZIP qui en contient plusieurs</p>
       <label class="drop" id="drop-t"><input type="file" id="file-t" accept=".xml,.zip" multiple><b>Déposer ici</b><span>XML ou ZIP</span></label>
+      <div id="modes" class="modes hidden"></div>
       <div class="chip hidden" id="chip-t"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-t"></b><span id="info-t"></span></div></div>
     </div>
     <div class="slot" id="slot-a">
@@ -86,6 +91,7 @@
       <summary>Réglages</summary>
       <div class="opts">
         <div class="field"><label>Largeur de collecte (m)</label><input type="number" id="width" value="30" min="5" max="150" step="5"></div>
+        <div class="field"><label>kg par personne et par passage <span class="muted">(facultatif)</span></label><input type="number" id="kg" value="" placeholder="ex. 3,5" min="0" step="0.1"></div>
         <div class="field"><label>Habitants / adresse (sans carreaux)</label><input type="number" id="per-addr" value="2.2" min="0.5" max="10" step="0.1"></div>
       </div>
     </details>

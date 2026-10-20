@@ -36,6 +36,13 @@
     return '';
   }
 
+  // Mode de collecte -> taux de présentation par défaut (part des adresses qui sortent leur déchet à chaque passage).
+  const MODES = {
+    sac: { label: 'Sac', taux: 1 },
+    bac: { label: 'Bac (TEOM / REOM fixe)', taux: 0.85 },
+    autre: { label: 'Autre (taux libre)', taux: 0.85 }
+  };
+
   /** Une tournée depuis le texte XML. Les coordonnées du tracé sont en WGS84 (lon, lat). */
   function parseXML(text, fileName) {
     const ci = /<ci\s([^>]*)>/.exec(text);
@@ -55,6 +62,7 @@
     });
     if (!troncons.length) throw new Error('aucun tronçon <tr> dans le fichier');
     return {
+      mode: 'bac', taux: MODES.bac.taux,
       file: fileName || '', code: head.nc || fileName || '', name: head.nl || head.nc || '', entreprise: head.ct || '',
       date: head.dtu || '', distance: +head.dtt || 0, troncons, unknownTypes: Array.from(unknown)
     };
@@ -225,7 +233,7 @@
   }
 
   /** Résultat d'une tournée (mêmes champs que les circuits en polygone, plus les indicateurs de tournée). */
-  function summarize(tournee, served, weights, communes) {
+  function summarize(tournee, served, weights, communes, opts) {
     let hab = 0, men = 0;
     const byCommune = new Map();
     for (const i of served.taken.keys()) {
@@ -243,11 +251,17 @@
     const noGeo = tournee.troncons.filter(t => t.side && t.work.length < 2).length;
     if (noGeo) alerts.push(noGeo + ' tronçon(s) collecté(s) sans tracé');
     if (tournee.unknownTypes.length) alerts.push('Types de tronçon inconnus : ' + tournee.unknownTypes.join(', '));
+    const taux = tournee.taux === undefined ? 1 : tournee.taux;
+    const presentees = served.taken.size * taux;
+    const people = hab * taux;
+    const kg = opts && opts.kgPerPerson > 0 ? opts.kgPerPerson : 0;
     const list = Array.from(byCommune.values()).sort((a, b) => b.habitants - a.habitants);
     return {
       id: tournee.code, name: tournee.name, props: { entreprise: tournee.entreprise, date: tournee.date },
       habitants: Math.round(hab), menages: weights.mode === 'fixe' ? '' : Math.round(men),
-      adresses: served.taken.size, adressesSecteur: Array.from(served.taken.values()).filter(v => v === 'secteur').length,
+      adresses: served.taken.size, mode: tournee.mode || '', modeLabel: (MODES[tournee.mode] || {}).label || '', taux,
+      presentees: Math.round(presentees), habCollectes: Math.round(people), production: kg ? Math.round(people * kg) : '',
+      adressesSecteur: Array.from(served.taken.values()).filter(v => v === 'secteur').length,
       troncons: tournee.troncons.length, kmCollecte, kmHlp: km.none / 1000, kmTotal: (km.D + km.G + km.B + km.none) / 1000,
       habParKm: kmCollecte ? hab / kmCollecte : 0,
       communes: list.map(c => ({ commune: c.commune, adresses: c.adresses, habitants: Math.round(c.habitants) })),
@@ -280,9 +294,9 @@
     const weights = weigh(pts, o.units && o.units.length ? o.units : null, o.perAddress);
     const index = indexPoints(pts);
     const served = o.tournees.map(tn => serve(tn, pts, index, o.width, o.sectors, o.exclusions));
-    const rows = o.tournees.map((tn, i) => summarize(tn, served[i], weights, communes));
+    const rows = o.tournees.map((tn, i) => summarize(tn, served[i], weights, communes, { kgPerPerson: o.kgPerPerson }));
     return { rows, served, pts, communes, weights, index, read, bad, kept: pts.length };
   }
 
-  return { compute, parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };
+  return { MODES, compute, parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };
 });

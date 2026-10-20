@@ -1063,6 +1063,11 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 table.mini th { white-space: nowrap; padding-right: 10px; }
 table.mini td { white-space: nowrap; padding-right: 10px; }
 
+.modes { margin-top: 10px; font-size: 12px; }
+.modes .mrow { display: grid; grid-template-columns: 1fr 1.5fr 62px; gap: 6px; align-items: center; margin-top: 4px; }
+.modes .mlist { max-height: 140px; overflow: auto; }
+.modes select, .modes input { padding: 4px 6px; }
+
 </style>
   <style>
     .page { max-width: 1040px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
@@ -1073,6 +1078,10 @@ table.mini td { white-space: nowrap; padding-right: 10px; }
     .slot h3 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; }
     .slot p { margin: 0 0 10px; font-size: 12px; color: var(--muted); }
     .slot .drop { padding: 18px 10px; }
+    .modes { margin-top: 10px; font-size: 12px; }
+    .modes .mrow { display: grid; grid-template-columns: 1fr 1.5fr 62px; gap: 6px; align-items: center; margin-top: 4px; }
+    .modes .mlist { max-height: 140px; overflow: auto; }
+    .modes select, .modes input { padding: 4px 6px; }
     .slot .dl { margin: 10px 0 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
     .slot .dl a { color: var(--accent); }
     .slot .dl input { width: 54px; padding: 2px 6px; text-align: center; }
@@ -1117,6 +1126,7 @@ table.mini td { white-space: nowrap; padding-right: 10px; }
       <h3><span class="n">1</span>Tournée(s)</h3>
       <p>XML de la tournée, ou ZIP qui en contient plusieurs</p>
       <label class="drop" id="drop-t"><input type="file" id="file-t" accept=".xml,.zip" multiple><b>Déposer ici</b><span>XML ou ZIP</span></label>
+      <div id="modes" class="modes hidden"></div>
       <div class="chip hidden" id="chip-t"><span class="chip-icon">✓</span><div class="chip-text"><b id="name-t"></b><span id="info-t"></span></div></div>
     </div>
     <div class="slot" id="slot-a">
@@ -1144,6 +1154,7 @@ table.mini td { white-space: nowrap; padding-right: 10px; }
       <summary>Réglages</summary>
       <div class="opts">
         <div class="field"><label>Largeur de collecte (m)</label><input type="number" id="width" value="30" min="5" max="150" step="5"></div>
+        <div class="field"><label>kg par personne et par passage <span class="muted">(facultatif)</span></label><input type="number" id="kg" value="" placeholder="ex. 3,5" min="0" step="0.1"></div>
         <div class="field"><label>Habitants / adresse (sans carreaux)</label><input type="number" id="per-addr" value="2.2" min="0.5" max="10" step="0.1"></div>
       </div>
     </details>
@@ -1889,6 +1900,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     { key: 'habParKm', label: 'Habitants par km collecté', re: /(par|\/)\s*km\s*(collect|coll)|hab\w*\s*\/\s*km\s*coll/i },
     { key: 'kmHlp', label: 'Km haut le pied', re: /haut.*pied|hlp|km.*vide/i },
     { key: 'kmCollecte', label: 'Km collectés', re: /km.*collect|collect.*km|kilom/i },
+    { key: 'habCollectes', label: 'Habitants collectés (estim.)', re: /habitants?\s+collect[ée]s|personnes/i },
+    { key: 'taux', label: 'Taux de présentation (%)', re: /taux|pr[ée]sentation/i },
+    { key: 'presentees', label: 'Adresses présentées (estim.)', re: /pr[ée]sent|adresses? collect[ée]es/i },
+    { key: 'production', label: 'Production estimée (kg/passage)', re: /production|tonnage|\bkg\b|poids/i },
+    { key: 'mode', label: 'Mode de collecte', re: /mode|type.*collecte|sac|\bbac/i },
     { key: 'adresses', label: 'Adresses desservies', re: /adresse|point.*collecte|foyers? desservis/i },
     { key: 'communes', label: 'Communes (habitants)', re: /communes?\b/i },
     { key: 'menages', label: 'Nombre de ménages', re: /m[ée]nage|foyer/i },
@@ -1902,7 +1918,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     { key: 'id', label: 'Code circuit', re: /code|identifiant|^id\b|n°|num|circuit|tourn[ée]e/i }
   ];
   const DISPLAY_ORDER = ['id', 'nom', 'habitants', 'menages', 'surface', 'densite', 'carreaux', 'couverture', 'source', 'date'];
-  const DISPLAY_ORDER_TOURNEE = ['id', 'nom', 'habitants', 'menages', 'adresses', 'kmCollecte', 'kmHlp', 'habParKm', 'communes', 'source', 'date'];
+  const DISPLAY_ORDER_TOURNEE = ['id', 'nom', 'habitants', 'mode', 'taux', 'habCollectes', 'presentees', 'production', 'menages', 'adresses', 'kmCollecte', 'kmHlp', 'habParKm', 'communes', 'source', 'date'];
 
   function guessField(header) {
     const f = FIELDS.find(x => x.re.test(String(header)));
@@ -1911,8 +1927,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   const fieldLabel = key => (FIELDS.find(f => f.key === key) || {}).label || '';
 
-  function standardFormat(tournees) {
-    return (tournees ? DISPLAY_ORDER_TOURNEE : DISPLAY_ORDER).map(key => ({ header: fieldLabel(key), field: key, fixed: '' }));
+  function standardFormat(tournees, withProduction) {
+    return (tournees ? DISPLAY_ORDER_TOURNEE.filter(k => k !== 'production' || withProduction) : DISPLAY_ORDER).map(key => ({ header: fieldLabel(key), field: key, fixed: '' }));
   }
 
   // Un modèle = les en-têtes d'un fichier existant ; chaque colonne est rattachée à un champ si reconnue.
@@ -1936,6 +1952,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       case 'densite': return Math.round(r.densite);
       case 'carreaux': return r.carreaux;
       case 'couverture': return Math.round(r.couverture * 100);
+      case 'mode': return r.modeLabel || '';
+      case 'habCollectes': return r.habCollectes === undefined ? '' : r.habCollectes;
+      case 'taux': return r.taux === undefined ? '' : Math.round(r.taux * 100);
+      case 'presentees': return r.presentees === undefined ? '' : r.presentees;
+      case 'production': return r.production === undefined ? '' : r.production;
       case 'adresses': return r.adresses === undefined ? '' : r.adresses;
       case 'kmCollecte': return r.kmCollecte === undefined ? '' : Math.round(r.kmCollecte * 10) / 10;
       case 'kmHlp': return r.kmHlp === undefined ? '' : Math.round(r.kmHlp * 10) / 10;
@@ -2104,6 +2125,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return '';
   }
 
+  // Mode de collecte -> taux de présentation par défaut (part des adresses qui sortent leur déchet à chaque passage).
+  const MODES = {
+    sac: { label: 'Sac', taux: 1 },
+    bac: { label: 'Bac (TEOM / REOM fixe)', taux: 0.85 },
+    autre: { label: 'Autre (taux libre)', taux: 0.85 }
+  };
+
   /** Une tournée depuis le texte XML. Les coordonnées du tracé sont en WGS84 (lon, lat). */
   function parseXML(text, fileName) {
     const ci = /<ci\s([^>]*)>/.exec(text);
@@ -2123,6 +2151,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     });
     if (!troncons.length) throw new Error('aucun tronçon <tr> dans le fichier');
     return {
+      mode: 'bac', taux: MODES.bac.taux,
       file: fileName || '', code: head.nc || fileName || '', name: head.nl || head.nc || '', entreprise: head.ct || '',
       date: head.dtu || '', distance: +head.dtt || 0, troncons, unknownTypes: Array.from(unknown)
     };
@@ -2293,7 +2322,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
 
   /** Résultat d'une tournée (mêmes champs que les circuits en polygone, plus les indicateurs de tournée). */
-  function summarize(tournee, served, weights, communes) {
+  function summarize(tournee, served, weights, communes, opts) {
     let hab = 0, men = 0;
     const byCommune = new Map();
     for (const i of served.taken.keys()) {
@@ -2311,11 +2340,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const noGeo = tournee.troncons.filter(t => t.side && t.work.length < 2).length;
     if (noGeo) alerts.push(noGeo + ' tronçon(s) collecté(s) sans tracé');
     if (tournee.unknownTypes.length) alerts.push('Types de tronçon inconnus : ' + tournee.unknownTypes.join(', '));
+    const taux = tournee.taux === undefined ? 1 : tournee.taux;
+    const presentees = served.taken.size * taux;
+    const people = hab * taux;
+    const kg = opts && opts.kgPerPerson > 0 ? opts.kgPerPerson : 0;
     const list = Array.from(byCommune.values()).sort((a, b) => b.habitants - a.habitants);
     return {
       id: tournee.code, name: tournee.name, props: { entreprise: tournee.entreprise, date: tournee.date },
       habitants: Math.round(hab), menages: weights.mode === 'fixe' ? '' : Math.round(men),
-      adresses: served.taken.size, adressesSecteur: Array.from(served.taken.values()).filter(v => v === 'secteur').length,
+      adresses: served.taken.size, mode: tournee.mode || '', modeLabel: (MODES[tournee.mode] || {}).label || '', taux,
+      presentees: Math.round(presentees), habCollectes: Math.round(people), production: kg ? Math.round(people * kg) : '',
+      adressesSecteur: Array.from(served.taken.values()).filter(v => v === 'secteur').length,
       troncons: tournee.troncons.length, kmCollecte, kmHlp: km.none / 1000, kmTotal: (km.D + km.G + km.B + km.none) / 1000,
       habParKm: kmCollecte ? hab / kmCollecte : 0,
       communes: list.map(c => ({ commune: c.commune, adresses: c.adresses, habitants: Math.round(c.habitants) })),
@@ -2348,11 +2383,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const weights = weigh(pts, o.units && o.units.length ? o.units : null, o.perAddress);
     const index = indexPoints(pts);
     const served = o.tournees.map(tn => serve(tn, pts, index, o.width, o.sectors, o.exclusions));
-    const rows = o.tournees.map((tn, i) => summarize(tn, served[i], weights, communes));
+    const rows = o.tournees.map((tn, i) => summarize(tn, served[i], weights, communes, { kgPerPerson: o.kgPerPerson }));
     return { rows, served, pts, communes, weights, index, read, bad, kept: pts.length };
   }
 
-  return { compute, parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };
+  return { MODES, compute, parseXML, sideOf, unzip, decodeText, project, windowOf, locate, indexPoints, candidates, serve, weigh, summarize };
 });
 
 </script>
@@ -2428,7 +2463,36 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     state.tournees = list;
     const km = list.reduce((s, t) => s + t.troncons.filter(x => x.side).reduce((a, x) => a + x.dist, 0), 0) / 1000;
     chip('t', list.length === 1 ? list[0].file : `${list.length} tournées`, `${fmt1(km)} km collectés`);
+    renderModes();
   }
+
+  // Mode de collecte (sac / bac) -> taux de présentation, par tournée.
+  function modeOptions(sel) { return Object.keys(Tournees.MODES).map(k => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(Tournees.MODES[k].label)}</option>`).join(''); }
+  function renderModes() {
+    const list = state.tournees;
+    $('modes').classList.remove('hidden');
+    $('modes').innerHTML = `<b>Mode de collecte et taux de présentation</b>` +
+      (list.length > 1 ? `<div class="mrow"><span>Toutes</span><select id="mode-all"><option value="">— choisir —</option>${modeOptions('')}</select><span></span></div>` : '') +
+      `<div class="mlist">` + list.map((t, i) => `<div class="mrow" data-i="${i}"><span title="${esc(t.name)}">${esc(t.code)}</span><select class="m">${modeOptions(t.mode)}</select><input class="t" type="number" min="1" max="100" step="1" value="${Math.round(t.taux * 100)}" title="Taux de présentation (%)"></div>`).join('') + `</div>` +
+      `<p class="muted" style="margin:6px 0 0">Sac = 100 %, bac en TEOM ou REOM fixe = 85 % : part des adresses qui sortent leur déchet à chaque passage.</p>`;
+  }
+  function setMode(i, mode) {
+    const t = state.tournees[i];
+    t.mode = mode;
+    if (mode !== 'autre') t.taux = Tournees.MODES[mode].taux;
+  }
+  $('modes').addEventListener('change', e => {
+    if (e.target.id === 'mode-all') {
+      if (!e.target.value) return;
+      state.tournees.forEach((t, i) => setMode(i, e.target.value));
+      renderModes();
+    } else {
+      const row = e.target.closest('.mrow'), t = state.tournees[+row.dataset.i];
+      if (e.target.classList.contains('m')) { setMode(+row.dataset.i, e.target.value); row.querySelector('.t').value = Math.round(t.taux * 100); }
+      else { t.taux = Math.max(0.01, Math.min(1, (+e.target.value || 100) / 100)); t.mode = 'autre'; row.querySelector('.m').value = 'autre'; }
+    }
+    if (state.result) recalc();
+  });
   wire('t', loadTournees);
 
   // 2. Adresses
@@ -2488,7 +2552,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         units = Habitants.unitsFromRows(f => p.src.each(p.sheet, f), { idCol: p.id, popCol: p.pop, menCol: p.men, toNumber: IO.toNumber, window: win }).units;
       }
       const res = Tournees.compute({
-        tournees: state.tournees, crs: a.crs, units, width, perAddress, margin: 1500, sectors: [], exclusions: [],
+        tournees: state.tournees, crs: a.crs, units, width, perAddress, margin: 1500, sectors: [], exclusions: [], kgPerPerson: kgPerPerson(),
         eachAddress: cb => a.src.each(a.sheet, r => cb(IO.toNumber(r[a.x]), IO.toNumber(r[a.y]), a.commune ? String(r[a.commune] || '').trim() : ''))
       });
       res.width = width; res.perAddress = perAddress; res.hasUnits = !!(units && units.length);
@@ -2503,17 +2567,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     $('hint').textContent = '';
   });
 
+  const kgPerPerson = () => +String($('kg').value).replace(',', '.') || 0;
+  $('kg').addEventListener('change', () => { if (state.result) recalc(); });
+
   function render() {
     const r = state.result, rows = r.rows;
     r.width = r.width || 30;
-    const tot = rows.reduce((s, x) => ({ h: s.h + x.habitants, a: s.a + x.adresses, k: s.k + x.kmCollecte }), { h: 0, a: 0, k: 0 });
+    const tot = rows.reduce((s, x) => ({ h: s.h + x.habitants, c: s.c + x.habCollectes, a: s.a + x.adresses, p: s.p + x.presentees, k: s.k + x.kmCollecte, kg: s.kg + (x.production || 0) }), { h: 0, c: 0, a: 0, p: 0, k: 0, kg: 0 });
+    const kgOn = kgPerPerson() > 0;
     $('results').classList.remove('hidden');
-    $('summary').textContent = `${fmt(tot.h)} habitants · ${fmt(tot.a)} adresses · ${fmt1(tot.k)} km collectés`;
-    $('table').innerHTML = '<thead><tr><th>Code</th><th>Libellé</th><th class="n">Habitants</th><th class="n">Adresses</th><th class="n">Km collectés</th><th class="n">Hab./km</th><th>Communes</th><th>Alerte</th></tr></thead><tbody>' +
-      rows.map(x => `<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td class="n"><b>${fmt(x.habitants)}</b></td><td class="n">${fmt(x.adresses)}</td><td class="n">${fmt1(x.kmCollecte)}</td><td class="n">${fmt1(x.habParKm)}</td>` +
+    $('summary').textContent = `${fmt(tot.h)} habitants desservis · ${fmt(tot.c)} collectés (estim.) · ${fmt(tot.a)} adresses · ${fmt1(tot.k)} km collectés` + (kgOn ? ` · ${fmt(tot.kg)} kg par passage` : '');
+    $('table').innerHTML = '<thead><tr><th>Code</th><th>Libellé</th><th>Mode</th><th class="n">Habitants desservis</th><th class="n">Habitants collectés</th><th class="n">Adresses</th><th class="n">Adresses présentées</th>' + (kgOn ? '<th class="n">Production (kg/passage)</th>' : '') + '<th class="n">Km collectés</th><th>Communes</th><th>Alerte</th></tr></thead><tbody>' +
+      rows.map(x => `<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${esc(x.modeLabel)} · ${Math.round(x.taux * 100)} %</td><td class="n">${fmt(x.habitants)}</td><td class="n"><b>${fmt(x.habCollectes)}</b></td><td class="n">${fmt(x.adresses)}</td><td class="n">${fmt(x.presentees)}</td>` + (kgOn ? `<td class="n"><b>${fmt(x.production || 0)}</b></td>` : '') + `<td class="n">${fmt1(x.kmCollecte)}</td>` +
         `<td>${esc(x.communes.slice(0, 3).map(c => `${c.commune || '?'} (${fmt(c.habitants)})`).join(' · '))}</td><td>${x.alerts.length ? `<span class="warn">⚠ ${esc(x.alerts[0])}</span>` : ''}</td></tr>`).join('') + '</tbody>';
     const notes = [r.hasUnits ? 'Habitants par adresse : population du carreau INSEE ÷ nombre d\'adresses du carreau.' : `Habitants par adresse : valeur fixe (${String(r.perAddress).replace('.', ',')}).`,
-      `Bande de ${r.width} m du côté collecté. Estimation : à vérifier sur quelques secteurs connus.`];
+      `Bande de ${r.width} m du côté collecté. Habitants collectés = habitants desservis × taux de présentation du mode de collecte (sac 100 %, bac 85 %). Estimation : à vérifier sur quelques secteurs connus.`];
     if (r.weights.orphanPop > 0) notes.push(`${fmt(r.weights.orphanPop)} habitants de carreaux sans adresse non attribués.`);
     $('notes').textContent = notes.join(' ');
   }
@@ -2524,7 +2592,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const s = JSON.parse(localStorage.getItem('habitants.format.v1') || 'null');
       if (s && s.custom && Array.isArray(s.format) && s.format.length) return { format: s.format, source: s.source };
     } catch (e) { /* ignoré */ }
-    return { format: Habitants.standardFormat(true), source: '' };
+    return { format: Habitants.standardFormat(true, kgPerPerson() > 0), source: '' };
   }
   const stamp = () => new Date().toISOString().slice(0, 10);
   function table() {
@@ -2695,7 +2763,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       m.add.forEach(k => { if (!sv.taken.has(k)) sv.taken.set(k, 'manuel'); });
       return sv;
     });
-    r.rows = state.tournees.map((t, i) => Tournees.summarize(t, r.served[i], r.weights, r.communes));
+    r.rows = state.tournees.map((t, i) => Tournees.summarize(t, r.served[i], r.weights, r.communes, { kgPerPerson: kgPerPerson() }));
     render(); drawSectors(); drawAddresses();
   }
   function setWidth(v) {

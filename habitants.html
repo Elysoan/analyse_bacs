@@ -46,6 +46,8 @@
             <div class="field"><label>Largeur de collecte (m)</label><input type="number" id="width" value="30" min="5" max="500" step="5"></div>
             <div class="field"><label>Hab. par adresse <span class="muted">(sans carreaux)</span></label><input type="number" id="per-addr" value="2.2" min="0.5" max="10" step="0.1"></div>
           </div>
+          <div class="field"><label>kg par personne et par passage <span class="muted">(facultatif : production)</span></label><input type="number" id="kg" placeholder="ex. 3,5" min="0" step="0.1"></div>
+          <div id="modes" class="modes"></div>
           <p class="hint">Bande de chaque côté collecté, mesurée depuis l'axe du tronçon (côté droit/gauche selon le sens de la tournée).</p>
           <details class="geo" id="sectors-box">
             <summary>🧩 Secteurs complémentaires <span class="muted">(bacs de regroupement, hameaux)</span></summary>

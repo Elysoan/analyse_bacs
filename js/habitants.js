@@ -299,6 +299,11 @@
     { key: 'habParKm', label: 'Habitants par km collecté', re: /(par|\/)\s*km\s*(collect|coll)|hab\w*\s*\/\s*km\s*coll/i },
     { key: 'kmHlp', label: 'Km haut le pied', re: /haut.*pied|hlp|km.*vide/i },
     { key: 'kmCollecte', label: 'Km collectés', re: /km.*collect|collect.*km|kilom/i },
+    { key: 'habCollectes', label: 'Habitants collectés (estim.)', re: /habitants?\s+collect[ée]s|personnes/i },
+    { key: 'taux', label: 'Taux de présentation (%)', re: /taux|pr[ée]sentation/i },
+    { key: 'presentees', label: 'Adresses présentées (estim.)', re: /pr[ée]sent|adresses? collect[ée]es/i },
+    { key: 'production', label: 'Production estimée (kg/passage)', re: /production|tonnage|\bkg\b|poids/i },
+    { key: 'mode', label: 'Mode de collecte', re: /mode|type.*collecte|sac|\bbac/i },
     { key: 'adresses', label: 'Adresses desservies', re: /adresse|point.*collecte|foyers? desservis/i },
     { key: 'communes', label: 'Communes (habitants)', re: /communes?\b/i },
     { key: 'menages', label: 'Nombre de ménages', re: /m[ée]nage|foyer/i },
@@ -312,7 +317,7 @@
     { key: 'id', label: 'Code circuit', re: /code|identifiant|^id\b|n°|num|circuit|tourn[ée]e/i }
   ];
   const DISPLAY_ORDER = ['id', 'nom', 'habitants', 'menages', 'surface', 'densite', 'carreaux', 'couverture', 'source', 'date'];
-  const DISPLAY_ORDER_TOURNEE = ['id', 'nom', 'habitants', 'menages', 'adresses', 'kmCollecte', 'kmHlp', 'habParKm', 'communes', 'source', 'date'];
+  const DISPLAY_ORDER_TOURNEE = ['id', 'nom', 'habitants', 'mode', 'taux', 'habCollectes', 'presentees', 'production', 'menages', 'adresses', 'kmCollecte', 'kmHlp', 'habParKm', 'communes', 'source', 'date'];
 
   function guessField(header) {
     const f = FIELDS.find(x => x.re.test(String(header)));
@@ -321,8 +326,8 @@
 
   const fieldLabel = key => (FIELDS.find(f => f.key === key) || {}).label || '';
 
-  function standardFormat(tournees) {
-    return (tournees ? DISPLAY_ORDER_TOURNEE : DISPLAY_ORDER).map(key => ({ header: fieldLabel(key), field: key, fixed: '' }));
+  function standardFormat(tournees, withProduction) {
+    return (tournees ? DISPLAY_ORDER_TOURNEE.filter(k => k !== 'production' || withProduction) : DISPLAY_ORDER).map(key => ({ header: fieldLabel(key), field: key, fixed: '' }));
   }
 
   // Un modèle = les en-têtes d'un fichier existant ; chaque colonne est rattachée à un champ si reconnue.
@@ -346,6 +351,11 @@
       case 'densite': return Math.round(r.densite);
       case 'carreaux': return r.carreaux;
       case 'couverture': return Math.round(r.couverture * 100);
+      case 'mode': return r.modeLabel || '';
+      case 'habCollectes': return r.habCollectes === undefined ? '' : r.habCollectes;
+      case 'taux': return r.taux === undefined ? '' : Math.round(r.taux * 100);
+      case 'presentees': return r.presentees === undefined ? '' : r.presentees;
+      case 'production': return r.production === undefined ? '' : r.production;
       case 'adresses': return r.adresses === undefined ? '' : r.adresses;
       case 'kmCollecte': return r.kmCollecte === undefined ? '' : Math.round(r.kmCollecte * 10) / 10;
       case 'kmHlp': return r.kmHlp === undefined ? '' : Math.round(r.kmHlp * 10) / 10;

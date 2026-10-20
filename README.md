@@ -48,6 +48,7 @@ Au lieu d'un polygone, on peut déposer le **XML d'une tournée** (`<ci>` / `<tr
 - **Adresses** : BAN du département (`adresses-XX.csv.gz`, lu directement) ou toute liste avec coordonnées ; chaque adresse n'est comptée qu'une fois.
 - **Habitants par adresse** : population du carreau INSEE ÷ nombre d'adresses du carreau (population conservée), sinon un nombre fixe d'habitants par adresse.
 - **Rural, bacs de regroupement** : *Secteurs complémentaires*, des polygones GeoJSON dont toutes les adresses sont ajoutées (sans doublon avec la bande).
+- **Mode de collecte** par tournée : sac = 100 %, bac (TEOM / REOM fixe) = 85 % (taux modifiable) → habitants collectés estimés = habitants desservis × taux, adresses présentées, et production par passage si on renseigne des kg par personne.
 - Sorties : habitants, ménages, adresses, km collectés / haut le pied, habitants par km collecté, détail par commune (CSV), tronçons et adresses retenues en GeoJSON pour contrôle dans ArcGIS Pro.
 
 ## Analyse des levées

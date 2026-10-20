@@ -69,7 +69,36 @@
     state.tournees = list;
     const km = list.reduce((s, t) => s + t.troncons.filter(x => x.side).reduce((a, x) => a + x.dist, 0), 0) / 1000;
     chip('t', list.length === 1 ? list[0].file : `${list.length} tournées`, `${fmt1(km)} km collectés`);
+    renderModes();
   }
+
+  // Mode de collecte (sac / bac) -> taux de présentation, par tournée.
+  function modeOptions(sel) { return Object.keys(Tournees.MODES).map(k => `<option value="${k}"${k === sel ? ' selected' : ''}>${esc(Tournees.MODES[k].label)}</option>`).join(''); }
+  function renderModes() {
+    const list = state.tournees;
+    $('modes').classList.remove('hidden');
+    $('modes').innerHTML = `<b>Mode de collecte et taux de présentation</b>` +
+      (list.length > 1 ? `<div class="mrow"><span>Toutes</span><select id="mode-all"><option value="">— choisir —</option>${modeOptions('')}</select><span></span></div>` : '') +
+      `<div class="mlist">` + list.map((t, i) => `<div class="mrow" data-i="${i}"><span title="${esc(t.name)}">${esc(t.code)}</span><select class="m">${modeOptions(t.mode)}</select><input class="t" type="number" min="1" max="100" step="1" value="${Math.round(t.taux * 100)}" title="Taux de présentation (%)"></div>`).join('') + `</div>` +
+      `<p class="muted" style="margin:6px 0 0">Sac = 100 %, bac en TEOM ou REOM fixe = 85 % : part des adresses qui sortent leur déchet à chaque passage.</p>`;
+  }
+  function setMode(i, mode) {
+    const t = state.tournees[i];
+    t.mode = mode;
+    if (mode !== 'autre') t.taux = Tournees.MODES[mode].taux;
+  }
+  $('modes').addEventListener('change', e => {
+    if (e.target.id === 'mode-all') {
+      if (!e.target.value) return;
+      state.tournees.forEach((t, i) => setMode(i, e.target.value));
+      renderModes();
+    } else {
+      const row = e.target.closest('.mrow'), t = state.tournees[+row.dataset.i];
+      if (e.target.classList.contains('m')) { setMode(+row.dataset.i, e.target.value); row.querySelector('.t').value = Math.round(t.taux * 100); }
+      else { t.taux = Math.max(0.01, Math.min(1, (+e.target.value || 100) / 100)); t.mode = 'autre'; row.querySelector('.m').value = 'autre'; }
+    }
+    if (state.result) recalc();
+  });
   wire('t', loadTournees);
 
   // 2. Adresses
@@ -129,7 +158,7 @@
         units = Habitants.unitsFromRows(f => p.src.each(p.sheet, f), { idCol: p.id, popCol: p.pop, menCol: p.men, toNumber: IO.toNumber, window: win }).units;
       }
       const res = Tournees.compute({
-        tournees: state.tournees, crs: a.crs, units, width, perAddress, margin: 1500, sectors: [], exclusions: [],
+        tournees: state.tournees, crs: a.crs, units, width, perAddress, margin: 1500, sectors: [], exclusions: [], kgPerPerson: kgPerPerson(),
         eachAddress: cb => a.src.each(a.sheet, r => cb(IO.toNumber(r[a.x]), IO.toNumber(r[a.y]), a.commune ? String(r[a.commune] || '').trim() : ''))
       });
       res.width = width; res.perAddress = perAddress; res.hasUnits = !!(units && units.length);
@@ -144,17 +173,21 @@
     $('hint').textContent = '';
   });
 
+  const kgPerPerson = () => +String($('kg').value).replace(',', '.') || 0;
+  $('kg').addEventListener('change', () => { if (state.result) recalc(); });
+
   function render() {
     const r = state.result, rows = r.rows;
     r.width = r.width || 30;
-    const tot = rows.reduce((s, x) => ({ h: s.h + x.habitants, a: s.a + x.adresses, k: s.k + x.kmCollecte }), { h: 0, a: 0, k: 0 });
+    const tot = rows.reduce((s, x) => ({ h: s.h + x.habitants, c: s.c + x.habCollectes, a: s.a + x.adresses, p: s.p + x.presentees, k: s.k + x.kmCollecte, kg: s.kg + (x.production || 0) }), { h: 0, c: 0, a: 0, p: 0, k: 0, kg: 0 });
+    const kgOn = kgPerPerson() > 0;
     $('results').classList.remove('hidden');
-    $('summary').textContent = `${fmt(tot.h)} habitants · ${fmt(tot.a)} adresses · ${fmt1(tot.k)} km collectés`;
-    $('table').innerHTML = '<thead><tr><th>Code</th><th>Libellé</th><th class="n">Habitants</th><th class="n">Adresses</th><th class="n">Km collectés</th><th class="n">Hab./km</th><th>Communes</th><th>Alerte</th></tr></thead><tbody>' +
-      rows.map(x => `<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td class="n"><b>${fmt(x.habitants)}</b></td><td class="n">${fmt(x.adresses)}</td><td class="n">${fmt1(x.kmCollecte)}</td><td class="n">${fmt1(x.habParKm)}</td>` +
+    $('summary').textContent = `${fmt(tot.h)} habitants desservis · ${fmt(tot.c)} collectés (estim.) · ${fmt(tot.a)} adresses · ${fmt1(tot.k)} km collectés` + (kgOn ? ` · ${fmt(tot.kg)} kg par passage` : '');
+    $('table').innerHTML = '<thead><tr><th>Code</th><th>Libellé</th><th>Mode</th><th class="n">Habitants desservis</th><th class="n">Habitants collectés</th><th class="n">Adresses</th><th class="n">Adresses présentées</th>' + (kgOn ? '<th class="n">Production (kg/passage)</th>' : '') + '<th class="n">Km collectés</th><th>Communes</th><th>Alerte</th></tr></thead><tbody>' +
+      rows.map(x => `<tr><td>${esc(x.id)}</td><td>${esc(x.name)}</td><td>${esc(x.modeLabel)} · ${Math.round(x.taux * 100)} %</td><td class="n">${fmt(x.habitants)}</td><td class="n"><b>${fmt(x.habCollectes)}</b></td><td class="n">${fmt(x.adresses)}</td><td class="n">${fmt(x.presentees)}</td>` + (kgOn ? `<td class="n"><b>${fmt(x.production || 0)}</b></td>` : '') + `<td class="n">${fmt1(x.kmCollecte)}</td>` +
         `<td>${esc(x.communes.slice(0, 3).map(c => `${c.commune || '?'} (${fmt(c.habitants)})`).join(' · '))}</td><td>${x.alerts.length ? `<span class="warn">⚠ ${esc(x.alerts[0])}</span>` : ''}</td></tr>`).join('') + '</tbody>';
     const notes = [r.hasUnits ? 'Habitants par adresse : population du carreau INSEE ÷ nombre d\'adresses du carreau.' : `Habitants par adresse : valeur fixe (${String(r.perAddress).replace('.', ',')}).`,
-      `Bande de ${r.width} m du côté collecté. Estimation : à vérifier sur quelques secteurs connus.`];
+      `Bande de ${r.width} m du côté collecté. Habitants collectés = habitants desservis × taux de présentation du mode de collecte (sac 100 %, bac 85 %). Estimation : à vérifier sur quelques secteurs connus.`];
     if (r.weights.orphanPop > 0) notes.push(`${fmt(r.weights.orphanPop)} habitants de carreaux sans adresse non attribués.`);
     $('notes').textContent = notes.join(' ');
   }
@@ -165,7 +198,7 @@
       const s = JSON.parse(localStorage.getItem('habitants.format.v1') || 'null');
       if (s && s.custom && Array.isArray(s.format) && s.format.length) return { format: s.format, source: s.source };
     } catch (e) { /* ignoré */ }
-    return { format: Habitants.standardFormat(true), source: '' };
+    return { format: Habitants.standardFormat(true, kgPerPerson() > 0), source: '' };
   }
   const stamp = () => new Date().toISOString().slice(0, 10);
   function table() {
@@ -336,7 +369,7 @@
       m.add.forEach(k => { if (!sv.taken.has(k)) sv.taken.set(k, 'manuel'); });
       return sv;
     });
-    r.rows = state.tournees.map((t, i) => Tournees.summarize(t, r.served[i], r.weights, r.communes));
+    r.rows = state.tournees.map((t, i) => Tournees.summarize(t, r.served[i], r.weights, r.communes, { kgPerPerson: kgPerPerson() }));
     render(); drawSectors(); drawAddresses();
   }
   function setWidth(v) {
