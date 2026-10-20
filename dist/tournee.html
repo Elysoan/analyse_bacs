@@ -672,16 +672,19 @@ svg.leaflet-image-layer.leaflet-interactive path {
 /* ===== Jetons ===== */
 :root {
   color-scheme: light;
-  --bg: #f3f4f6;
+  --bg: #f9f8f5;
   --surface: #ffffff;
-  --surface-2: #f8f9fa;
-  --text: #16191d;
-  --muted: #5f6672;
-  --border: #e3e6ea;
-  --accent: #0f7b6c;
-  --accent-soft: #e3f3f0;
+  --surface-2: #f4f3ee;
+  --text: #1d2a47;
+  --muted: #5d6679;
+  --border: #e6e3da;
+  --accent: #5f8010;
+  --accent-soft: #ebf7ed;
   --accent-text: #ffffff;
-  --row-hover: #f1f6f5;
+  --brand: #7ca018;
+  --navy: #1c3465;
+  --title: #1c3465;
+  --row-hover: #f2f6e8;
   --danger: #b42318;
   --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
   --radius: 12px;
@@ -698,23 +701,24 @@ svg.leaflet-image-layer.leaflet-interactive path {
   --c-doublon: #4a3aa7;
   --c-context: #c3c8cf;
 
-  font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  font-family: Montserrat, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #111317;
-    --surface: #1a1d22;
-    --surface-2: #20242a;
-    --text: #eceef1;
-    --muted: #9aa3ae;
-    --border: #2c3138;
-    --accent: #2bb39e;
-    --accent-soft: #17312d;
-    --accent-text: #06201b;
-    --row-hover: #222a2f;
+    --bg: #0f1729;
+    --surface: #17213a;
+    --surface-2: #1d2a47;
+    --text: #eef1f7;
+    --muted: #9fb0cf;
+    --border: #2b3a5c;
+    --accent: #a3c93a;
+    --accent-soft: #243314;
+    --accent-text: #10200a;
+    --title: #eef1f7;
+    --row-hover: #1e2c4a;
     --danger: #f97066;
     --shadow: none;
     --c-seulB: #3987e5;
@@ -1068,6 +1072,33 @@ table.mini td { white-space: nowrap; padding-right: 10px; }
 .modes .mlist { max-height: 140px; overflow: auto; }
 .modes select, .modes input { padding: 4px 6px; }
 
+/* ===== Charte PHoenix / Paprec : bleu marine, vert, fond crème ===== */
+.topbar { background: var(--navy); color: #fff; border-bottom: 0; }
+.topbar .brand span { color: #b9c6e4; }
+.topbar .btn.ghost, .topbar a.btn.ghost { color: #fff; }
+.topbar .btn.ghost:hover:not(:disabled) { background: rgba(255,255,255,.14); border-color: transparent; }
+.topbar .menu-pop { color: var(--text); }
+.logo { background: var(--brand); color: #fff; border-radius: 8px; }
+.brand-logo { display: none; }
+.brand-logo.ok { display: block; height: 32px; width: auto; background: #fff; padding: 4px 9px; border-radius: 6px; margin-right: 4px; }
+.btn { border-radius: 6px; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+.step.done .step-num, .chip-icon { background: var(--brand); border-color: var(--brand); }
+.card, .sidebar, .slot, .kpi, .welcome-finds, dialog { border-radius: 8px; }
+.results-head h2, .welcome h2, .page h2, .step-head h2, .card-title, .slot h3 { color: var(--title, var(--text)); }
+.kpi:first-child { background: var(--accent-soft); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+.notice { background: #faeaea; border-color: #e8b9ad; color: #5a2d22; }
+.notice > b { color: #c66c39; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .notice { background: #3a1f22; border-color: #7a3b36; color: #f3d6d0; } }
+.warn { color: #c66c39; }
+.howto > div, .welcome-finds { background: var(--surface); border: 1px solid var(--border); }
+.howto .n { background: var(--navy); color: #fff; }
+
+a { color: var(--accent); }
+.topbar a { color: inherit; }
+.help a { color: var(--accent); }
+
 </style>
   <style>
     .page { max-width: 1040px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
@@ -1106,6 +1137,7 @@ table.mini td { white-space: nowrap; padding-right: 10px; }
 <body>
 <header class="topbar">
   <div class="brand">
+    
     <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-8 6 0 9-6s4-5 7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="18" r="1.6" fill="currentColor"/><circle cx="20" cy="4" r="1.6" fill="currentColor"/></svg>
     <div><h1>Habitants d'une tournée</h1><span>Version simple</span></div>
   </div>
@@ -2614,7 +2646,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   // --- Carte et sectorisation ------------------------------------------------------------------------------
   const toLL = Habitants.transform(Habitants.WORK, 'EPSG:4326'), toWork = Habitants.transform('EPSG:4326', Habitants.WORK);
-  const SIDE = { D: ['#0f7b6c', 4], G: ['#4a3aa7', 4], B: ['#2a78d6', 4], '': ['#8a919c', 2] };
+  const SIDE = { D: ['#4f7a0a', 4], G: ['#4a3aa7', 4], B: ['#2a78d6', 4], '': ['#8a919c', 2] };
   const KIND = { add: { color: '#d55181', label: 'Secteur ajouté' }, excl: { color: '#e34948', label: 'Zone exclue' } };
   let map, tLayer, aLayer, sLayer, vLayer, drawing = null, tmp = null, selected = null, seq = 0;
 

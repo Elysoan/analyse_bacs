@@ -688,9 +688,9 @@
   let map, layer, cellLayer, legend;
   const polys = new Map();
   const toLL = Habitants.transform(Habitants.WORK, 'EPSG:4326');
-  const RAMP = ['#d7efe9', '#9bd6c9', '#56b8a6', '#1f8f7e', '#0b5f53'];
+  const RAMP = ['#eef3dc', '#d2e29d', '#aecb55', '#7ca018', '#44620a'];
   const SIDE_STYLE = {
-    D: { color: '#0f7b6c', weight: 4, label: 'Collecte à droite' },
+    D: { color: '#4f7a0a', weight: 4, label: 'Collecte à droite' },
     G: { color: '#4a3aa7', weight: 4, label: 'Collecte à gauche' },
     B: { color: '#2a78d6', weight: 4, label: 'Collecte bilatérale' },
     '': { color: '#8a919c', weight: 2, dashArray: '5 5', label: 'Haut le pied' }

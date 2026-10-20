@@ -1,0 +1,2 @@
+Déposer ici le logo : img/logo.svg (ou img/logo.png, fond transparent).
+Il apparaît dans l'en-tête des trois pages, et est intégré par : node tools/build-standalone.js

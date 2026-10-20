@@ -20,6 +20,14 @@ html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, href) => {
   });
   return `<style>\n${css}\n</style>`;
 });
+// Logo facultatif : intégré s'il existe (img/logo.svg ou img/logo.png), retiré sinon.
+html = html.replace(/<img class="brand-logo"[^>]*>/g, () => {
+  for (const f of ['img/logo.svg', 'img/logo.png']) {
+    const file = path.join(root, f);
+    if (fs.existsSync(file)) return `<img class="brand-logo ok" alt="Paprec" src="data:${mime[path.extname(f)]};base64,${fs.readFileSync(file).toString('base64')}">`;
+  }
+  return '';
+});
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => `<script>\n${read(src).replace(/<\/script/gi, '<\\/script')}\n</script>`);
 
 fs.mkdirSync(path.dirname(path.join(root, out)), { recursive: true });
