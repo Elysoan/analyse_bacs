@@ -692,7 +692,7 @@
   const SIDE_STYLE = {
     D: { color: '#4f7a0a', weight: 4, label: 'Collecte à droite' },
     G: { color: '#4a3aa7', weight: 4, label: 'Collecte à gauche' },
-    B: { color: '#2a78d6', weight: 4, label: 'Collecte bilatérale' },
+    B: { color: '#1176ab', weight: 4, label: 'Collecte bilatérale' },
     '': { color: '#8a919c', weight: 2, dashArray: '5 5', label: 'Haut le pied' }
   };
 

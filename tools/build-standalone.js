@@ -8,7 +8,7 @@ const out = process.argv[3] || path.join('dist', page);
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
 let html = read(page);
-const mime = { '.png': 'image/png', '.svg': 'image/svg+xml' };
+const mime = { '.png': 'image/png', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
 
 html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, href) => {
   let css = read(href);
@@ -20,13 +20,10 @@ html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, href) => {
   });
   return `<style>\n${css}\n</style>`;
 });
-// Logo facultatif : intégré s'il existe (img/logo.svg ou img/logo.png), retiré sinon.
-html = html.replace(/<img class="brand-logo"[^>]*>/g, () => {
-  for (const f of ['img/logo.svg', 'img/logo.png']) {
-    const file = path.join(root, f);
-    if (fs.existsSync(file)) return `<img class="brand-logo ok" alt="Paprec" src="data:${mime[path.extname(f)]};base64,${fs.readFileSync(file).toString('base64')}">`;
-  }
-  return '';
+// Images locales (logo...) intégrées en base64.
+html = html.replace(/<img ([^>]*?)src="(?!data:|https?:)([^"]+)"/g, (m, pre, src) => {
+  const file = path.join(root, src);
+  return fs.existsSync(file) ? `<img ${pre}src="data:${mime[path.extname(src)] || 'application/octet-stream'};base64,${fs.readFileSync(file).toString('base64')}"` : m;
 });
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => `<script>\n${read(src).replace(/<\/script/gi, '<\\/script')}\n</script>`);
 

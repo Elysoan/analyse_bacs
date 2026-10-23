@@ -224,7 +224,7 @@
 
   // --- Carte et sectorisation ------------------------------------------------------------------------------
   const toLL = Habitants.transform(Habitants.WORK, 'EPSG:4326'), toWork = Habitants.transform('EPSG:4326', Habitants.WORK);
-  const SIDE = { D: ['#4f7a0a', 4], G: ['#4a3aa7', 4], B: ['#2a78d6', 4], '': ['#8a919c', 2] };
+  const SIDE = { D: ['#4f7a0a', 4], G: ['#4a3aa7', 4], B: ['#1176ab', 4], '': ['#8a919c', 2] };
   const KIND = { add: { color: '#d55181', label: 'Secteur ajouté' }, excl: { color: '#e34948', label: 'Zone exclue' } };
   let map, tLayer, aLayer, sLayer, vLayer, drawing = null, tmp = null, selected = null, seq = 0;
 

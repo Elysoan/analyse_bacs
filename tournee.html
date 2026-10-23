@@ -63,8 +63,7 @@
 <body>
 <header class="topbar">
   <div class="brand">
-    <img class="brand-logo" src="img/logo.svg" alt="Paprec" onload="this.classList.add('ok')" onerror="if(!this.dataset.t){this.dataset.t=1;this.src='img/logo.png'}else{this.remove()}">
-    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-8 6 0 9-6s4-5 7-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="18" r="1.6" fill="currentColor"/><circle cx="20" cy="4" r="1.6" fill="currentColor"/></svg>
+    <img class="logo-paprec" src="img/logo.svg" alt="Paprec">
     <div><h1>Habitants d'une tournée</h1><span>Version simple</span></div>
   </div>
   <div class="top-actions">
@@ -122,7 +121,7 @@
   </section>
 
   <section class="go">
-    <button id="btn-run" class="btn primary big" disabled>Calculer</button>
+    <button id="btn-run" class="btn primary go big" disabled>Calculer</button>
     <details class="advanced">
       <summary>Réglages</summary>
       <div class="opts">
@@ -156,7 +155,7 @@
       <button id="btn-lasso" class="btn small" title="Dessinez d'un seul geste la zone : les adresses non retenues qu'elle contient sont sélectionnées, puis ajoutées après validation">＋ Ajouter des adresses</button>
       <button id="btn-excl" class="btn small" title="Dessiner un polygone : ses adresses sont retirées">✂ Exclure une zone</button>
       <span id="lasso-info" class="muted hidden" style="font-size:12px;max-width:520px"></span>
-      <button id="btn-finish" class="btn primary small hidden">Terminer</button>
+      <button id="btn-finish" class="btn primary go small hidden">Terminer</button>
       <button id="btn-cancel" class="btn small hidden">Annuler</button>
     </div>
     <div id="map"></div>

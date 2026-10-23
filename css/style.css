@@ -1,20 +1,28 @@
+@font-face { font-family: "Red Hat Display"; font-weight: 400; font-style: normal; font-display: swap; src: url(../vendor/fonts/RedHatDisplay-400.woff2) format("woff2"); }
+@font-face { font-family: "Red Hat Display"; font-weight: 500; font-style: normal; font-display: swap; src: url(../vendor/fonts/RedHatDisplay-500.woff2) format("woff2"); }
+@font-face { font-family: "Red Hat Display"; font-weight: 700; font-style: normal; font-display: swap; src: url(../vendor/fonts/RedHatDisplay-700.woff2) format("woff2"); }
 /* ===== Jetons ===== */
 :root {
   color-scheme: light;
-  --bg: #f9f8f5;
+  --bg: #f5f7fa;
   --surface: #ffffff;
-  --surface-2: #f4f3ee;
-  --text: #1d2a47;
-  --muted: #5d6679;
-  --border: #e6e3da;
-  --accent: #5f8010;
-  --accent-soft: #ebf7ed;
+  --surface-2: #f5f7fa;
+  --text: #1f2a37;
+  --muted: #5f6b7a;
+  --border: #e3e7ee;
+  --accent: #597311;
+  --accent-soft: #f1fadb;
   --accent-text: #ffffff;
-  --brand: #7ca018;
+  --brand: #7fa127;
+  --bleu: #1176ab;
+  --info: #e3e9f7;
+  --warn-bg: #fdf6f2;
+  --warn-line: #ffebdc;
+  --warn-ink: #ae571e;
   --navy: #1c3465;
   --title: #1c3465;
-  --row-hover: #f2f6e8;
-  --danger: #b42318;
+  --row-hover: #f3f6ec;
+  --danger: #c83f3f;
   --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .06);
   --radius: 12px;
 
@@ -30,7 +38,7 @@
   --c-doublon: #4a3aa7;
   --c-context: #c3c8cf;
 
-  font-family: Montserrat, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  font-family: "Red Hat Display", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 14px;
   color: var(--text);
 }
@@ -61,6 +69,11 @@
     --c-doublon: #9085e9;
     --c-context: #474d56;
   }
+    --info: #1d2f55;
+    --warn-bg: #3a1f22;
+    --warn-line: #7a3b36;
+    --warn-ink: #f0a98b;
+    --bleu: #5aa9d6;
 }
 
 * { box-sizing: border-box; }
@@ -427,3 +440,35 @@ table.mini td { white-space: nowrap; padding-right: 10px; }
 a { color: var(--accent); }
 .topbar a { color: inherit; }
 .help a { color: var(--accent); }
+
+/* ===== Charte Panorama · Paprec ===== */
+body { font-size: 14.5px; }
+.topbar { padding: 14px 28px; gap: 18px; }
+.brand { gap: 18px; }
+.brand .logo-paprec { height: 34px; width: auto; display: block; }
+.brand > div { padding-left: 18px; border-left: 1px solid rgba(255,255,255,.45); }
+.brand h1 { font-size: 20px; font-weight: 600; }
+.btn { border-radius: 8px; font-weight: 500; }
+.btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; font-weight: 600; }
+.btn.primary.go, .coach .btn.primary { background: var(--brand); border-color: var(--brand); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.12); }
+.btn:disabled { background: #aab4c3; border-color: #aab4c3; color: #fff; opacity: 1; }
+.card, .sidebar, .slot, .kpi, dialog { border-radius: 12px; }
+input, select { border-radius: 8px; }
+.drop { border: 2px dashed #b9c3d0; border-radius: 12px; }
+.drop:hover, .drop.over { border-color: var(--bleu); background: var(--info); color: var(--bleu); }
+.kpi .v { color: var(--navy); font-weight: 700; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .kpi .v { color: var(--text); } }
+.kpi:first-child { background: var(--accent-soft); }
+.notice { background: var(--warn-bg); border-color: var(--warn-line); color: var(--text); }
+.notice > b { color: var(--warn-ink); }
+.warn { color: var(--warn-ink); }
+.hint.ok { color: var(--accent); }
+.step.done .step-num, .chip-icon { background: var(--brand); border-color: var(--brand); }
+.chip { background: var(--accent-soft); }
+.step.active .step-num { border-color: var(--navy); color: var(--navy); }
+table.grid th, table.mini th { font-weight: 600; }
+.howto .n { background: var(--navy); }
+a { color: var(--accent); }
+.topbar a { color: inherit; }
+.btn { text-align: center; justify-content: center; }

@@ -10,8 +10,7 @@
 <body>
 <header class="topbar">
   <div class="brand">
-    <img class="brand-logo" src="img/logo.svg" alt="Paprec" onload="this.classList.add('ok')" onerror="if(!this.dataset.t){this.dataset.t=1;this.src='img/logo.png'}else{this.remove()}">
-    <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="9.5" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19c.3-3.2 2.5-5 5.5-5s5.2 1.8 5.5 5M15 14.3c2.6-.4 5 .9 5.5 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <img class="logo-paprec" src="img/logo.svg" alt="Paprec">
     <div><h1>Habitants par circuit</h1><span>Circuits de collecte × carreaux INSEE</span></div>
   </div>
   <div class="top-actions">
@@ -128,7 +127,7 @@
     </div>
 
     <div class="run">
-      <button id="btn-run" class="btn primary block big" disabled>Calculer les habitants</button>
+      <button id="btn-run" class="btn primary go block big" disabled>Calculer les habitants</button>
       <p id="run-hint" class="muted center">Chargez les circuits et la population pour commencer.</p>
     </div>
   </aside>
